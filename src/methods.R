@@ -32,11 +32,44 @@ loci <- function(obs, est, obs_thresh = 0.85) {
 }
 
 # Quantile Mapping
-fit_gamma <- function(obs, obs_thresh = 0.85, method = "mle") {
+fit_gamma <- function(obs, obs_thresh = 0.85, 
+                      method = c("mle", "mme", "qme", "mge", "mse")) {
   obs <- obs[obs > obs_thresh] - obs_thresh
   obs <- as.numeric(na.omit(obs))
   if(length(obs) > 5) fitdistrplus::fitdist(obs, distr = "gamma", method = method)
   else NULL
+}
+
+fit_empirical <- function(obs, obs_thresh = 0.85) {
+  obs <- obs[obs > obs_thresh] - obs_thresh
+  ecdf(obs)
+}
+
+quantile_mapping <- function(obs, est, obs_thresh = 0.85, 
+                             qm_method = c("gamma", "empirical"), 
+                             gamma_method = c("mle", "mme", "qme", 
+                                              "mge", "mse")) {
+  est_thresh <- thresh(obs, est, obs_thresh)
+  qm_method <- match.arg(qm_method)
+  if (qm_method == "gamma") {
+    obs_gamma <- fit_gamma(obs, obs_thresh, method = gamma_method)
+    est_gamma <- fit_gamma(est, est_thresh, method = gamma_method)
+    obs_shape = obs_gamma[["estimate"]][["shape"]]
+    obs_rate = obs_gamma[["estimate"]][["rate"]]
+    est_shape = est_gamma[["estimate"]][["shape"]]
+    est_rate = est_gamma[["estimate"]][["rate"]]
+    est_qm <- if_else(est <= est_thresh, 0,
+                      qgamma(pgamma(est - est_thresh, shape = est_shape, 
+                                    rate = est_rate),
+                             shape = obs_shape, rate = obs_rate) + obs_thresh)
+  } else if (qm_method == "empirical") {
+    obs_rain <- obs[obs > obs_thresh] - obs_thresh
+    est_ecdf <- fit_empirical(est, est_thresh)
+    est_qm <- if_else(est <= est_thresh, 0,
+                      as.numeric(quantile(obs_rain, est_ecdf(est - est_thresh), 
+                               na.rm = TRUE)) + obs_thresh)
+  }
+  return(est_qm)
 }
 
 # Weather generator

@@ -12,6 +12,8 @@ source(here("src", "methods.R"))
 
 thresh(x, y)
 loci(x, y)
+quantile_mapping(x, y, qm_method = "gamma")
+quantile_mapping(x, y, qm_method = "empirical")
 
 rwanda <- readr::read_csv(here("data", "rwanda_daily.csv"))
 kigali <- rwanda %>%
