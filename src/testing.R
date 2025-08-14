@@ -2,6 +2,8 @@ library(here)
 library(readr)
 library(dplyr)
 library(fitdistrplus)
+library(lubridate)
+library(ggplot2)
 
 set.seed(12)
 
@@ -16,9 +18,69 @@ quantile_mapping(x, y, qm_method = "gamma")
 quantile_mapping(x, y, qm_method = "empirical")
 
 rwanda <- readr::read_csv(here("data", "rwanda_daily.csv"))
+rwanda_stations <- readr::read_csv(here("data", "rwanda_stations.csv"))
+
 kigali <- rwanda %>%
   filter(station_name == "KIGALI AERO") %>%
-  mutate(rain_sim = precip + rnorm(n(), 4, 4),
-         rain_sim = ifelse(rain_sim < 0, 0, rain_sim))
+  dplyr::select(station = station_name, date, rain = precip)
 
-thresh_calc(kigali$precip, kigali$rain_sim)
+kigali_tamsat <- readr::read_csv(here("data", "tamsat3.1_kigali.csv"), 
+                                 na = "-999")
+kigali_tamsat <- kigali_tamsat %>%
+  dplyr::mutate(station = "KIGALI AERO", date = time, tamsat_rain = rfe_filled,
+                .keep = "none")
+
+kigali <- dplyr::left_join(kigali, kigali_tamsat, 
+                           by = c("station", "date"))
+kigali <- kigali %>% 
+  mutate(year = year(date), month = month(date), 
+                            day = day(date)) %>%
+  filter(year >= 1983)
+
+kigali_month <- kigali %>% 
+  group_by(year, month) %>%
+  filter(!is.na(rain) & !is.na(tamsat_rain)) %>%
+  summarise(n_rain = sum(rain > 0.85),
+            n_rain_tamsat = sum(tamsat_rain > 0.85))
+
+ggplot(kigali_month, aes(x = year, y = n_rain, colour = "station")) +
+  geom_line() +
+  geom_line(aes(y = n_rain_tamsat, colour = "TAMSAT")) +
+  facet_wrap(vars(month))
+
+dodoma <- readr::read_csv(here("data", "dodoma.csv"))
+
+dodoma <- dodoma %>%
+  dplyr::select(date, rain)
+
+dodoma_tamsat <- readr::read_csv(here("data", "tamsat3.1_dodoma.csv"), 
+                                 na = "-999")
+dodoma_tamsat <- dodoma_tamsat %>%
+  dplyr::mutate(date = time, tamsat_rain = rfe_filled,
+                .keep = "none")
+dodoma <- dplyr::left_join(dodoma, dodoma_tamsat, 
+                           by = "date")
+dodoma <- dodoma %>% 
+  mutate(year = year(date), month = month(date), 
+         day = day(date),
+         rainday = rain > 0.85,
+         rainday_lag = dplyr::lag(rainday, default = NA)) %>%
+  group_by(month) %>%
+  mutate(t_tamsat = thresh(rain, tamsat_rain),
+         tamsat_rainday = tamsat_rain > t_tamsat,
+         tamsat_rainday_lag = dplyr::lag(tamsat_rainday, default = NA)) %>%
+  filter(year >= 1983)
+
+dodoma_month <- dodoma %>% 
+  group_by(month) %>%
+  filter(!is.na(rain) & !is.na(tamsat_rain)) %>%
+  summarise(p_rain = mean(rainday),
+            p_rain_tamsat = mean(tamsat_rainday),
+            p_rain_w = mean(rainday[rainday_lag], na.rm = TRUE),
+            p_rain_w_tamsat = mean(tamsat_rainday[tamsat_rainday_lag], 
+                                   na.rm = TRUE),
+            p_rain_d = mean(rainday[!rainday_lag], na.rm = TRUE),
+            p_rain_d_tamsat = mean(tamsat_rainday[!tamsat_rainday_lag], 
+                                   na.rm = TRUE))
+
+markov_thresholds(dodoma, "rain", "tamsat_rain")
