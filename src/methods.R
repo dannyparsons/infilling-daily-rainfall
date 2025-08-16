@@ -73,16 +73,15 @@ quantile_mapping <- function(obs, est, obs_thresh = 0.85,
 }
 
 # Calculate logical wet/dry on x using t_w and t_d
-conditional_wd <- function(x, t_w, t_d, t0) {
+conditional_wd <- function(x, t_w, t_d, t0, y0) {
   n <- length(x)
   y <- logical(n)
+  # TODO Update to also use last value from previous month as parameter, y0
   # Set first value based only on today's rain and t0
-  # TODO Update to also use last value from previous month as parameter e.g. y0
   y[1] <- x[1] > t0
-  print(x)
   for (i in 2:n) {
-    print(i)
-    y[i] <- if(y[i - 1]) x[i] > t_w else x[i] > t_d
+    if (is.na(y[i - 1])) y[i] <- x[i] > t0
+    else y[i] <- if(y[i - 1]) x[i] > t_w else x[i] > t_d
   }
   y
 }
@@ -112,6 +111,9 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
     p_w_est = numeric(),
     p_d_obs = numeric(),
     p_d_est = numeric(),
+    converged = logical(),
+    iterations = integer(),
+    n_days = integer()
   )
 
   for (m in 1:12) {
@@ -130,7 +132,7 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
                    names = FALSE)
     t_d <- t0
     t_w <- t0
-    
+
     converged <- FALSE
     # Iterate to converge to target probabilities
     for (i in 1:max_it) {
@@ -140,7 +142,7 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
         group_modify(~{
           y0 <- .x$obs_wd_prev[1]
           if (is.na(y0)) y0 <- FALSE
-          y  <- conditional_wd(.x[[est_col]], t_d, t_w, y0)
+          y  <- conditional_wd(.x[[est_col]], t_w, t_d, t0, y0)
           tibble(.x, est_wd = y, est_wd_prev = dplyr::lag(y, default = y0))
         }) %>%
         ungroup()
@@ -150,18 +152,26 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
       p_d_est <- mean(res$est_wd[!res$est_wd_prev], na.rm = TRUE)
       
       # Compare with target probabilities and stop if sufficiently converged
-      if (abs(p_w_est - p_w_obs) < tol && abs(p_d_est - p_d_obs) < tol) {
+      # print(i)
+      # print(length(res$est_wd[res$est_wd_prev]))
+      # print(length(res$est_wd[!res$est_wd_prev]))
+      # print(p_w_est)
+      # print(p_w_obs)
+      # print(p_d_est)
+      # print(p_d_obs)
+      if (is.na(p_w_est) || is.na(p_w_obs) || is.na(p_d_est) || is.na(p_d_obs)) break
+      else if (abs(p_w_est - p_w_obs) < tol && abs(p_d_est - p_d_obs) < tol) {
         converged <- TRUE
         break
       }
       
       # Update thresholds based on current wet/dry and target probabilities
-      t_w <- quantile(res[["est_col"]][res$est_wd_prev],
-                      probs = 1 - p_w_obs, names = FALSE)
-      t_d <- quantile(res[["est_col"]][!res$est_wd_prev],
-                      probs = 1 - p_d_obs, names = FALSE)
+      t_w <- quantile(res[[est_col]][res$est_wd_prev],
+                      probs = 1 - p_w_obs, na.rm = TRUE, names = FALSE)
+      t_d <- quantile(res[[est_col]][!res$est_wd_prev],
+                      probs = 1 - p_d_obs, na.rm = TRUE, names = FALSE)
     }
-    results %>% 
+    results <- results %>% 
       tibble::add_row(month = m, t_w = t_w, t_d = t_d, p_obs = p_obs, 
                       p_est = p_est, p_w_obs = p_w_obs, p_w_est = p_w_est, 
                       p_d_obs = p_d_obs, p_d_est = p_d_est, 
@@ -169,6 +179,7 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
                       iterations = i,
                       n_days = nrow(data_m))
   }
+  results
 }
 
 # Conditional Threshold Calibration

@@ -83,4 +83,5 @@ dodoma_month <- dodoma %>%
             p_rain_d_tamsat = mean(tamsat_rainday[!tamsat_rainday_lag], 
                                    na.rm = TRUE))
 
-markov_thresholds(dodoma, "rain", "tamsat_rain")
+source(here("src", "methods.R"))
+res <- markov_thresholds(dodoma, "rain", "tamsat_rain", tol = 1e-2, max_it = 50)
