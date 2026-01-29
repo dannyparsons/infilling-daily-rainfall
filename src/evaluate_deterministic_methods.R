@@ -569,7 +569,10 @@ zim_annual_amt_metrics <- zim_annual_amt_wide %>%
             mean_rain_me = mean(mean_rain_diff, na.rm = TRUE),
             t_rain_cor = cor(t_rain, t_rain_station, use = "complete.obs"),
             max_rain_cor = cor(max_rain, max_rain_station, use = "complete.obs"),
-            mean_rain_cor = cor(mean_rain, mean_rain_station, use = "complete.obs"))
+            mean_rain_cor = cor(mean_rain, mean_rain_station, use = "complete.obs"),
+            t_rain_rsd = hydroGOF::rSD(t_rain, t_rain_station),
+            mean_rain_rsd = hydroGOF::rSD(mean_rain, mean_rain_station),
+            max_rain_rsd = hydroGOF::rSD(max_rain, max_rain_station))
 
 # Annual total rainfall
 ggplot(zim_annual_amt, 
@@ -585,10 +588,11 @@ ggplot(zim_annual_amt,
 # Question: Graph in supplementary material? Or can we make the graph readable?
 
 tbl_annual_amt_t_rain <- zim_annual_amt_metrics %>%
-  dplyr::select(station, source, t_rain_me, t_rain_cor) %>%
-  pivot_longer(cols = c(t_rain_me, t_rain_cor), names_to = "metric",
+  dplyr::select(station, source, t_rain_me, t_rain_cor, t_rain_rsd) %>%
+  pivot_longer(cols = c(t_rain_me, t_rain_cor, t_rain_rsd), names_to = "metric",
                values_to = "value") %>%
-  mutate(metric = recode(metric, t_rain_me = "ME", t_rain_cor  = "cor"),
+  mutate(metric = recode(metric, t_rain_me = "ME", t_rain_cor  = "cor",
+                         t_rain_rsd = "rSD"),
          value = round(value, 3)) %>%
   pivot_wider(names_from = source, values_from = value) %>%
   arrange(metric, station)
@@ -606,10 +610,11 @@ ggplot(zim_annual_amt,
   base_theme()
 
 tbl_annual_amt_mean_rain <- zim_annual_amt_metrics %>%
-  dplyr::select(station, source, mean_rain_me, mean_rain_cor) %>%
-  pivot_longer(cols = c(mean_rain_me, mean_rain_cor), names_to = "metric",
+  dplyr::select(station, source, mean_rain_me, mean_rain_cor, mean_rain_rsd) %>%
+  pivot_longer(cols = c(mean_rain_me, mean_rain_cor, mean_rain_rsd), names_to = "metric",
                values_to = "value") %>%
-  mutate(metric = recode(metric, mean_rain_me = "ME", mean_rain_cor  = "cor"),
+  mutate(metric = recode(metric, mean_rain_me = "ME", mean_rain_cor  = "cor",
+                         mean_rain_rsd = "rSD"),
          value = round(value, 3)) %>%
   pivot_wider(names_from = source, values_from = value) %>%
   arrange(metric, station)
@@ -627,10 +632,11 @@ ggplot(zim_annual_amt,
   base_theme()
 
 tbl_annual_amt_max_rain <- zim_annual_amt_metrics %>%
-  dplyr::select(station, source, max_rain_me, max_rain_cor) %>%
-  pivot_longer(cols = c(max_rain_me, max_rain_cor), names_to = "metric",
+  dplyr::select(station, source, max_rain_me, max_rain_cor, max_rain_rsd) %>%
+  pivot_longer(cols = c(max_rain_me, max_rain_cor, max_rain_rsd), names_to = "metric",
                values_to = "value") %>%
-  mutate(metric = recode(metric, max_rain_me = "ME", max_rain_cor  = "cor"),
+  mutate(metric = recode(metric, max_rain_me = "ME", max_rain_cor  = "cor",
+                         max_rain_rsd = "rSD"),
          value = round(value, 3)) %>%
   pivot_wider(names_from = source, values_from = value) %>%
   arrange(metric, station)
