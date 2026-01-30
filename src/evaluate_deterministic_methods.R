@@ -805,10 +805,6 @@ zimbabwe_pod_hss_amt <- zimbabwe_bc_stack_amt_wide %>%
   group_by(station, source) %>%
   filter(!is.na(rain_cat) & !is.na(rain_cat_station)) %>%
   filter(month %in% c(10:12, 1:3)) %>%
-  # Question: Should HSS be calculated with or without "Dry" category
-  # Probably makes more sense with it included, but misleading since not in graph?
-  # Or add to graph which is a repetition of POD shown in occurrence section?
-  # filter(rain_cat_station != "Dry") %>%
   summarise(
     pod_no = sum(rain_cat == "No Rain" & rain_cat_station == "No Rain", na.rm = TRUE) / sum(rain_cat_station == "No Rain", na.rm = TRUE),
     pod_light = sum(rain_cat == "Light Rain" & rain_cat_station == "Light Rain", na.rm = TRUE) / sum(rain_cat_station == "Light Rain", na.rm = TRUE),
