@@ -247,8 +247,8 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
                   abs(p_d_est - p_d_obs) < max(tol, tol_d))) {
           converged <- TRUE
           break
-        # Stop if probabilities are converging within a tolerance 
-        # after n_conv iterations
+          # Stop if probabilities are converging within a tolerance 
+          # after n_conv iterations
         } else if (n_same >= n_conv) {
           converged <- TRUE
           within_tol <- TRUE
@@ -273,9 +273,9 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
       est_prev_dry <- data_m[[est_col]][!est_wd_prev]
       if (loci) {
         s_obs_all <- mean(data_m[[obs_col]][data_m[[obs_col]] > obs_thr], 
-                      na.rm = TRUE) - obs_thr
+                          na.rm = TRUE) - obs_thr
         s_est_all <- mean(data_m[[est_col]][data_m[[est_col]] > t0], 
-                      na.rm = TRUE) - t0
+                          na.rm = TRUE) - t0
         s_all <- s_obs_all / s_est_all
         
         s_obs_wet <- mean(obs_prev_wet[obs_prev_wet > obs_thr], 

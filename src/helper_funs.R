@@ -5,6 +5,15 @@ yday_366 <- function(date) {
   return(temp_doy)
 }
 
+base_theme <- function(panel.grid.minor = TRUE) {
+  th <- theme_minimal() +
+    theme(strip.text = element_text(face = "bold", size = 12),
+          axis.title = element_text(size = 12),
+          legend.position = "bottom")
+  if (!panel.grid.minor) th <- th + theme(panel.grid.minor = element_blank())
+  th
+}
+
 c25 <- c(
   "dodgerblue2", 
   "#E31A1C", # red

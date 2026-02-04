@@ -49,9 +49,70 @@ zimbabwe_by_season <- zimbabwe_t %>%
 
 source(here("src", "methods.R"))
 
+blocks <- as.Date(c("1979-01-01", "1989-01-01", "1999-01-01", 
+                    "2009-01-01", "2023-07-01"))
+
 zimbabwe_bc <- markov_loci(zimbabwe, obs_col = "rain", est_col = "agera5_rain", 
                  season_col = "season", station_col = "station",
-                 blocks = as.Date(c("1979-01-01", "1989-01-01", "1999-01-01", 
-                                    "2009-01-01", "2023-07-01")))
+                 blocks = blocks)
 
 saveRDS(zimbabwe_bc, here("data", "BC_data", "zimbabwe_agera5_bc_det.RDS"))
+
+
+# Calibration Results -----------------------------------------------------
+
+m_thresh <- list()
+stations <- unique(zimbabwe$station)
+for (st in stations) {
+  data_st <- zimbabwe %>% filter(station == st)
+  for (b in 1:(length(blocks) - 1)) {
+    data_cal <- data_st %>%
+      filter(!(date >= blocks[b] & date < blocks[b + 1]))
+    # data_apply <- data_st %>% 
+    #   filter(date >= blocks[b] & date < blocks[b + 1])
+    
+    # Calculate thresholds on calibration data
+    m_thresh_i <- markov_thresholds(data_cal, obs_col = "rain", est_col = "agera5_rain", 
+                                    season_col = "season", station_col = "station")
+    m_thresh_i$block_start <- blocks[b]
+    m_thresh_i$block_end <- blocks[b + 1]
+    m_thresh[[length(m_thresh) + 1]] <- m_thresh_i
+  }
+}
+m_thresh <- bind_rows(m_thresh)
+m_thresh$station <- recode(m_thresh$station,
+                           Buffalo_Range = "Buffalo Range",
+                           Mt_Darwin = "Mt Darwin")
+
+m_thresh_p <- m_thresh %>%
+  dplyr::select(station:p_d_est) %>%
+  pivot_longer(
+    cols = c(p_obs, p_w_obs, p_d_obs,
+             p_est, p_w_est, p_d_est),
+    names_to = c("ptype", "source"),
+    names_pattern = "(p|p_w|p_d)_(obs|est)",
+    values_to = "p"
+  ) %>%
+  pivot_wider(
+    names_from  = source,
+    values_from = p
+  ) %>%
+  mutate(
+    ptype = factor(ptype, levels = c("p", "p_w", "p_d")),
+    ptype_mc = factor(ifelse(ptype == "p", "Unconditional", "Conditional"),
+                      levels = c("Unconditional", "Conditional"))
+  )
+
+m_thresh_p
+
+ggplot(m_thresh_p, 
+       aes(x = obs, y = est, colour = ptype)) +
+  geom_abline() +
+  geom_point() +
+  labs(x = "Target Probability", y = "Achieved Probabilty", colour = "Probability") +
+  scale_colour_manual(
+    labels = c(p = expression(p[0]), p_w = expression(p[w]), p_d = expression(p[d])),
+    values = c(p = "#E31A1C", p_d = "dodgerblue2", p_w = "green4")) +
+  coord_fixed(ratio = 1) +
+  facet_grid(rows = vars(ptype_mc), cols = vars(station), axes = "all_x") +
+  base_theme()
