@@ -5,7 +5,7 @@ library(fitdistrplus)
 library(lubridate)
 library(ggplot2)
 library(purrr)
-
+library(tidyr)
 
 # Setup -------------------------------------------------------------------
 
@@ -18,6 +18,7 @@ zimbabwe <- zimbabwe %>%
 zimbabwe_stations <- readr::read_csv(here("data", "zimbabwe_stations.csv"))
 
 source(here("src", "methods.R"))
+source(here("src", "helper_funs.R"))
 
 # Testing method correctness ----------------------------------------------
 
@@ -74,8 +75,7 @@ for (st in stations) {
     # Calculate thresholds on calibration data
     m_thresh_i <- markov_thresholds(data_cal, obs_col = "rain", est_col = "agera5_rain", 
                                     season_col = "season", station_col = "station")
-    m_thresh_i$block_start <- blocks[b]
-    m_thresh_i$block_end <- blocks[b + 1]
+    m_thresh_i$block <- paste(blocks[b], "-", blocks[b + 1] - 1)
     m_thresh[[length(m_thresh) + 1]] <- m_thresh_i
   }
 }
@@ -84,11 +84,26 @@ m_thresh$station <- recode(m_thresh$station,
                            Buffalo_Range = "Buffalo Range",
                            Mt_Darwin = "Mt Darwin")
 
+m_thresh_res <- m_thresh %>%
+  dplyr::select(block, station:iterations, 
+                p_obs:p_d_est,
+                s_all, s_wet, s_dry,
+                gamma_est_all, gamma_est_wet, gamma_est_dry) %>%
+  mutate(gamma_all_shape = map_dbl(gamma_est_all, ~ .x$estimate["shape"]),
+         gamma_all_rate = map_dbl(gamma_est_all, ~ .x$estimate["rate"]),
+         gamma_wet_shape = map_dbl(gamma_est_wet, ~ if(!is.null(.x)) .x$estimate["shape"] else NA_real_),
+         gamma_wet_rate = map_dbl(gamma_est_wet, ~ if(!is.null(.x)) .x$estimate["rate"] else NA_real_),
+         gamma_dry_shape = map_dbl(gamma_est_dry, ~ .x$estimate["shape"]),
+         gamma_dry_rate = map_dbl(gamma_est_dry, ~ .x$estimate["rate"])) %>%
+  dplyr::select(-c(gamma_est_all:gamma_est_dry))
+
+# Table in supplementary material
+m_thresh_res
+
 m_thresh_p <- m_thresh %>%
-  dplyr::select(station:p_d_est) %>%
+  dplyr::select(block, station:iterations, p_obs:p_d_est) %>%
   pivot_longer(
-    cols = c(p_obs, p_w_obs, p_d_obs,
-             p_est, p_w_est, p_d_est),
+    cols = c(p_obs:p_d_est),
     names_to = c("ptype", "source"),
     names_pattern = "(p|p_w|p_d)_(obs|est)",
     values_to = "p"
@@ -100,10 +115,9 @@ m_thresh_p <- m_thresh %>%
   mutate(
     ptype = factor(ptype, levels = c("p", "p_w", "p_d")),
     ptype_mc = factor(ifelse(ptype == "p", "Unconditional", "Conditional"),
-                      levels = c("Unconditional", "Conditional"))
+                      levels = c("Unconditional", "Conditional")),
+    diff = est - obs
   )
-
-m_thresh_p
 
 ggplot(m_thresh_p, 
        aes(x = obs, y = est, colour = ptype)) +
