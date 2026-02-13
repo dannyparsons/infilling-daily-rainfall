@@ -35,7 +35,7 @@ zimbabwe_t <- zimbabwe_t %>%
   mutate(agera5_bc_rainday = conditional_wd(agera5_rain, t_w, t_d, t0),
          agera5_bc_rainday_lag = lag(agera5_bc_rainday))
 
-zimbabwe_by_season <- zimbabwe_t %>% 
+zimbabwe_t_by_season <- zimbabwe_t %>% 
   group_by(station, season) %>%
   summarise(p = mean(rainday, na.rm = TRUE),
             p_bc = mean(agera5_bc_rainday, na.rm = TRUE),
@@ -43,7 +43,6 @@ zimbabwe_by_season <- zimbabwe_t %>%
             p_w_bc = mean(agera5_bc_rainday[agera5_bc_rainday_lag], na.rm = TRUE),
             p_d = mean(rainday[!rainday_lag], na.rm = TRUE),
             p_d_bc = mean(agera5_bc_rainday[!agera5_bc_rainday_lag], na.rm = TRUE))
-
 
 # Generate BC data --------------------------------------------------------
 
@@ -56,8 +55,7 @@ zimbabwe_bc <- markov_loci(zimbabwe, obs_col = "rain", est_col = "agera5_rain",
                  season_col = "season", station_col = "station",
                  blocks = blocks)
 
-saveRDS(zimbabwe_bc, here("data", "BC_data", "zimbabwe_agera5_bc_det.RDS"))
-
+saveRDS(zimbabwe_bc, here("data", "BC_data", "zimbabwe_agera5_bc.RDS"))
 
 # Calibration Results -----------------------------------------------------
 

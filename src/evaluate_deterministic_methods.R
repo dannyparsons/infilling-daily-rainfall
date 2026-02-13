@@ -6,12 +6,13 @@ library(ggplot2)
 library(tidyr)
 library(purrr)
 library(verification)
+library(naflex)
 
 # Setup -------------------------------------------------------------------
 
 source(here("src", "helper_funs.R"))
 
-zimbabwe_bc <- read_rds(here("data", "BC_data", "zimbabwe_agera5_bc_det.RDS"))
+zimbabwe_bc <- read_rds(here("data", "BC_data", "zimbabwe_agera5_bc.RDS"))
 
 zimbabwe_bc_stack <- zimbabwe_bc %>%
   dplyr::select(station, date, year, month, day, season, rain, agera5_rain, est_loci:est_qm_gamma_mk) %>%
@@ -46,6 +47,7 @@ zimbabwe_bc_stack$station <- recode(zimbabwe_bc_stack$station,
 # Only need to evaluate one existing BC method and one modified method
 # since rain days are constructed the same way
 occurrence_source <- c("Gauge", "AgERA5", "LOCI", "MC LOCI")
+
 # Suggesting to only use the Gamma version of QM in the paper
 # Don't think there's any added value including Empirical version as well
 amounts_source <- c(occurrence_source, "QM", "MC QM")
@@ -89,30 +91,27 @@ ggplot(zim_monthly_occ,
   base_theme() +
   theme(panel.grid.minor = element_blank())
   
-# Question: need to present any metrics or obvious from the graph?
-
 # Annual summaries --------------------------------------------------------
 
 zim_annual_occ <- zimbabwe_bc_stack_occ %>%
   group_by(station, source, s_year) %>%
-  summarise(n_rain = sum(rr > 0.85, na.rm = TRUE)) %>%
+  summarise(n_rain = sum(rainday %>% na_omit_if(n = 27))) %>%
   ungroup()
 
 zim_annual_dryspells <- zimbabwe_bc_stack_occ %>%
   group_by(station, source, s_year) %>%
   filter(month %in% c(10:12, 1:3)) %>%
-  summarise(max_dry_spell = {
-    r <- rle(!rainday)
-    max(r$lengths[r$values], na.rm = TRUE)
-  }) %>%
+  summarise(
+    max_dry_spell = {
+      r <- rle(!rainday)
+      max(r$lengths[r$values], na.rm = TRUE)
+      },
+    na = sum(is.na(rainday))) %>%
+  mutate(max_dry_spell = if_else(na > 27, NA, max_dry_spell)) %>%
   ungroup()
 
 zim_annual_occ <- left_join(zim_annual_occ, zim_annual_dryspells, 
                             by = c("station", "source", "s_year"))
-
-# QC problem in station data at Chisumbanje in 2002 and 2009
-# TODO Remove this after QC done
-zim_annual_occ$max_dry_spell <- ifelse(zim_annual_occ$max_dry_spell > 100, NA, zim_annual_occ$max_dry_spell)
 
 zim_annual_occ_station <- zim_annual_occ %>% 
   filter(source == "Gauge") %>% 
