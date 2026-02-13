@@ -134,6 +134,12 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
   }
   season_col <- "season"
   data[["day"]] <- lubridate::day(data[[date_col]])
+  
+  # Insert NAs where obs/est is NA to ensure that only days with both
+  # obs and est values are included in the calibration
+  data[[obs_col]] <- if_else(is.na(data[[est_col]]), NA_real_, data[[obs_col]])
+  data[[est_col]] <- if_else(is.na(data[[obs_col]]), NA_real_, data[[est_col]])
+
   obs <- data[[obs_col]]
   est <- data[[est_col]]
   # logical wet/dry from observations
@@ -211,7 +217,10 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
             y0 <- .x$obs_wd_prev[1]
             if (is.na(y0)) y0 <- FALSE
             y  <- conditional_wd(.x[[est_col]], t_w, t_d, t0, y0)
-            tibble(.x, est_wd = y, est_wd_prev = dplyr::lag(y, default = y0))
+            # dplyr::lag() fails if y is all NAs so do it manually
+            if(all(is.na(y))) lag_y <- c(y0, rep(NA, length(y) - 1))
+            else lag_y <- dplyr::lag(y, default = y0)
+            tibble(.x, est_wd = y, est_wd_prev = lag_y)
           }) %>%
           ungroup()
         # Update probabilities

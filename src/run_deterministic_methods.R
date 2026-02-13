@@ -9,11 +9,10 @@ library(tidyr)
 
 # Setup -------------------------------------------------------------------
 
-zimbabwe <- readr::read_csv(here("data", "zimbabwe_with_sre.csv"))
+zimbabwe <- read_rds(here("data", "zimbabwe_with_sre.RDS"))
 
 zimbabwe <- zimbabwe %>%
-  filter(date >= as.Date("1979-01-01") & date <= as.Date("2023-06-30")) %>%
-  mutate(season = factor(season, levels = c("dry", 10:12, 1:4)))
+  filter(date >= as.Date("1979-01-01") & date <= as.Date("2023-06-30"))
 
 zimbabwe_stations <- readr::read_csv(here("data", "zimbabwe_stations.csv"))
 
