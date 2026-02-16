@@ -18,11 +18,13 @@ zimbabwe_bc_stack <- zimbabwe_bc %>%
   dplyr::select(station, date, year, month, day, season, rain, agera5_rain, est_loci:est_qm_gamma_mk) %>%
   pivot_longer(cols = c(rain, agera5_rain, est_loci:est_qm_gamma_mk), names_to = "source", values_to = "rr")
 
-# TODO start 1 Aug instead
 # 1 Aug = 214
 s_doy_start <- 214
 
 zimbabwe_bc_stack <- zimbabwe_bc_stack %>%
+  group_by(station, date) %>%
+  # Only include days in analysis when there was a gauge value
+  mutate(rr = if (any(is.na(rr))) NA else rr) %>%
   group_by(station, source) %>%
   mutate(rainday = rr > 0.85,
          lag_rainday = lag(rainday),
@@ -76,8 +78,8 @@ col_fill_occ <- scale_fill_manual(
 
 zim_monthly_occ <- zimbabwe_bc_stack_occ %>%
   group_by(station, source, month_abb, year) %>%
-  summarise(n_rain = sum(rainday, na.rm = TRUE)) %>%
-  summarise(n_rain = mean(n_rain))
+  summarise(n_rain = sum(rainday %>% na_omit_if(n = 10, consec = 4))) %>%
+  summarise(n_rain = mean(n_rain, na.rm = TRUE))
 
 ggplot(zim_monthly_occ,
        aes(x = month_abb, y = n_rain, colour = source, group = source)) +
@@ -95,7 +97,7 @@ ggplot(zim_monthly_occ,
 
 zim_annual_occ <- zimbabwe_bc_stack_occ %>%
   group_by(station, source, s_year) %>%
-  summarise(n_rain = sum(rainday %>% na_omit_if(n = 27))) %>%
+  summarise(n_rain = sum(rainday %>% na_omit_if(n = 27, consec = 20))) %>%
   ungroup()
 
 zim_annual_dryspells <- zimbabwe_bc_stack_occ %>%
@@ -106,8 +108,10 @@ zim_annual_dryspells <- zimbabwe_bc_stack_occ %>%
       r <- rle(!rainday)
       max(r$lengths[r$values], na.rm = TRUE)
       },
-    na = sum(is.na(rainday))) %>%
-  mutate(max_dry_spell = if_else(na > 27, NA, max_dry_spell)) %>%
+    na = sum(is.na(rainday)),
+    naconsec = na_consec(rainday)) %>%
+  mutate(max_dry_spell = if_else(na > 27 | naconsec > 20, NA, max_dry_spell)) %>%
+  dplyr::select(-c(na, naconsec)) %>%
   ungroup()
 
 zim_annual_occ <- left_join(zim_annual_occ, zim_annual_dryspells, 
@@ -181,7 +185,6 @@ tbl_annual_occ_maxdry <- zim_annual_occ_metrics %>%
                 sort(grep("^cor_",  names(.), value = TRUE)))
 tbl_annual_occ_maxdry
 
-
 # Distribution of wet/dry spells ------------------------------------------
 
 dry_spells <- zimbabwe_bc_stack_occ %>%
@@ -235,7 +238,7 @@ ks_results_dry <- dry_spells %>%
       tibble(
         source = src,
         `K-S test statistic` = unname(test$statistic),
-        p_value = test$p.value
+        `p value` = test$p.value
       )
     })
   ) %>%
@@ -253,18 +256,14 @@ ks_results_wet <- wet_spells %>%
       tibble(
         source = src,
         `K-S test statistic` = unname(test$statistic),
-        p_value = test$p.value
+        `p value` = test$p.value
       )
     })
   ) %>%
   ungroup()
 ks_results_wet
 
-
 # Seasonal ----------------------------------------------------------------
-
-# TODO include diagnostics of models in supplementary material?
-#      e.g. different harmonics to justify model choice
 
 # Markov Chain Zero Order Rainday Models
 
@@ -361,10 +360,12 @@ for (i in seq_len(nrow(mc_models_1))) {
   
   fitted_list[[i]] <- fitted_data
 }
+
 fitted_doy_df_1 <- bind_rows(fitted_list)
 fitted_doy_df_1$lag_rainday_fct <- 
   factor(ifelse(fitted_doy_df_1$lag_rainday, "Rain", "No Rain"),
          levels = c("Rain", "No Rain"))
+
 ggplot(fitted_doy_df_1, aes(x = s_doy_date, y = fitted, color = source)) +
   geom_line(size = 0.8) +
   scale_x_date(date_breaks = "2 months", date_labels = "%b") +
@@ -389,8 +390,13 @@ rmse_rainday_1 <- fitted_doy_df_1 %>%
   group_by(station, source, lag_rainday_fct) %>%
   summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE)))
 
-# Include table in supplementary material
-rmse_rainday_1
+rmse_rainday_1_wide <- rmse_rainday_1 %>%
+  pivot_wider(names_from = source, values_from = RMSE) %>%
+  arrange(lag_rainday_fct, station) %>%
+  rename(`Previous state` = lag_rainday_fct)
+
+# Include in supplementary material
+rmse_rainday_1_wide
 
 ggplot(rmse_rainday_1,
        aes(x = lag_rainday_fct, y = RMSE, fill = source)) +
@@ -442,7 +448,10 @@ ggplot(zimbabwe_pod_hss_occ,
   base_theme(panel.grid.minor = FALSE)
 
 # Include table in supplementary material
-zimbabwe_pod_hss_occ
+zimbabwe_pod_hss_occ_wide <- zimbabwe_pod_hss_occ %>%
+  pivot_wider(names_from = metric, values_from = value)
+
+zimbabwe_pod_hss_occ_wide
 
 # RAINFALL AMOUNTS --------------------------------------------------------
 
