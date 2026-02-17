@@ -479,11 +479,11 @@ col_fill_amt <- scale_fill_manual(
 
 zim_monthly_amt <- zimbabwe_bc_stack_amt %>%
   group_by(station, source, month_abb, year) %>%
-  summarise(n_rain = sum(rainday, na.rm = TRUE),
-            t_rain = sum(rr, na.rm = TRUE),
+  summarise(n_rain = sum(rainday %>% na_omit_if(n = 10, consec = 4)),
+            t_rain = sum(rr %>% na_omit_if(n = 10, consec = 4)),
             mean_rain = t_rain / n_rain,
             mean_rain = ifelse(is.infinite(mean_rain), NA, mean_rain),
-            max_rain = max(rr, na.rm = TRUE),
+            max_rain = max(rr %>% na_omit_if(n = 10, consec = 4)),
             max_rain = ifelse(is.infinite(max_rain), NA, max_rain)) %>%
   summarise(t_rain = mean(t_rain, na.rm = TRUE),
             mean_rain = mean(mean_rain, na.rm = TRUE),
@@ -511,7 +511,6 @@ ggplot(zim_monthly_amt,
   col_scale_amt +
   base_theme()
 
-# Include in supplementary material?
 zim_monthly_amt_metrics <- zim_monthly_amt %>%
   dplyr::select(station, source, month_abb, mean_rain) %>%
   pivot_wider(names_from = source, values_from = mean_rain) %>%
@@ -519,7 +518,9 @@ zim_monthly_amt_metrics <- zim_monthly_amt %>%
                names_to = "source", values_to = "mean_rain_src") %>%
   filter(!is.na(Gauge), !is.na(mean_rain_src)) %>%
   group_by(station, source) %>%
-  summarise(RMSE = sqrt(mean((mean_rain_src - Gauge)^2)))
+  summarise(RMSE = sqrt(mean((mean_rain_src - Gauge)^2))) %>%
+  pivot_wider(names_from = source, values_from = RMSE)
+zim_monthly_amt_metrics
 
 ggplot(zim_monthly_amt, 
        aes(x = month_abb, y = max_rain, colour = source, group = source)) +
@@ -536,13 +537,10 @@ ggplot(zim_monthly_amt,
 
 zim_annual_amt <- zimbabwe_bc_stack_amt %>%
   group_by(station, source, s_year) %>%
-  summarise(n_rain = sum(rr > 0.85, na.rm = TRUE),
-            t_rain = sum(rr, na.rm = TRUE),
-            # QC problem in station data at Chisumbanje in 2002 and 2009
-            # TODO Remove this after QC done
-            t_rain = ifelse(t_rain == 0, NA, t_rain),
+  summarise(n_rain = sum(rainday %>% na_omit_if(n = 27, consec = 20)),
+            t_rain = sum(rr %>% na_omit_if(n = 27, consec = 20)),
             mean_rain = t_rain / n_rain,
-            max_rain = max(rr, na.rm = TRUE)) %>%
+            max_rain = max(rr %>% na_omit_if(n = 27, consec = 20))) %>%
   ungroup()
 
 zim_annual_amt_station <- zim_annual_amt %>% 
@@ -561,16 +559,17 @@ zim_annual_amt_wide <- zim_annual_amt_wide %>%
          max_rain_diff = max_rain - max_rain_station,
          mean_rain_diff = mean_rain - mean_rain_station)
 
+# Full table in supplementary material
 zim_annual_amt_metrics <- zim_annual_amt_wide %>% 
   group_by(station, source) %>%
   summarise(t_rain_me = mean(t_rain_diff, na.rm = TRUE),
-            max_rain_me = mean(mean_rain_diff, na.rm = TRUE),
-            mean_rain_me = mean(mean_rain_diff, na.rm = TRUE),
             t_rain_cor = cor(t_rain, t_rain_station, use = "complete.obs"),
-            max_rain_cor = cor(max_rain, max_rain_station, use = "complete.obs"),
-            mean_rain_cor = cor(mean_rain, mean_rain_station, use = "complete.obs"),
             t_rain_rsd = hydroGOF::rSD(t_rain, t_rain_station),
+            mean_rain_me = mean(mean_rain_diff, na.rm = TRUE),
+            mean_rain_cor = cor(mean_rain, mean_rain_station, use = "complete.obs"),
             mean_rain_rsd = hydroGOF::rSD(mean_rain, mean_rain_station),
+            max_rain_me = mean(mean_rain_diff, na.rm = TRUE),
+            max_rain_cor = cor(max_rain, max_rain_station, use = "complete.obs"),
             max_rain_rsd = hydroGOF::rSD(max_rain, max_rain_station))
 
 # Annual total rainfall
@@ -584,7 +583,7 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-# Question: Graph in supplementary material? Or can we make the graph readable?
+# Question: Decide what to put in paper: graphs and/or tables?
 
 tbl_annual_amt_t_rain <- zim_annual_amt_metrics %>%
   dplyr::select(station, source, t_rain_me, t_rain_cor, t_rain_rsd) %>%
@@ -649,8 +648,7 @@ fit_zero_order_markov_amounts <- function(data) {
   data_rain <- data %>% filter(rainday)
   glm(rr ~ 
         sin(2 * pi * s_doy / 366) + cos(2 * pi * s_doy / 366) +
-        sin(4 * pi * s_doy / 366) + cos(4 * pi * s_doy / 366),# +
-        #sin(6 * pi * s_doy / 366) + cos(6 * pi * s_doy / 366),
+        sin(4 * pi * s_doy / 366) + cos(4 * pi * s_doy / 366),
       data = data_rain,
       family = Gamma(link = "log"))
 }
@@ -714,8 +712,7 @@ fit_first_order_markov_amounts <- function(data) {
   glm(rr ~ 
         lag_rainday +
         sin(2 * pi * s_doy / 366) + cos(2 * pi * s_doy / 366) +
-        sin(4 * pi * s_doy / 366) + cos(4 * pi * s_doy / 366),# +
-        #sin(6 * pi * s_doy / 366) + cos(6 * pi * s_doy / 366),
+        sin(4 * pi * s_doy / 366) + cos(4 * pi * s_doy / 366),
       data = data_rain,
       family = Gamma(link = "log"))
 }
@@ -837,7 +834,7 @@ ggplot(zimbabwe_pod_hss_amt_long, aes(x = metric, y = value, fill = source)) +
   facet_wrap(vars(station)) +
   labs(
     x = "Rainfall Category / Metric",
-    y = "Score",
+    y = "Metric Value",
     fill = "Source",
   ) +
   col_fill_amt +

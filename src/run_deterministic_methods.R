@@ -19,6 +19,9 @@ zimbabwe_stations <- readr::read_csv(here("data", "zimbabwe_stations.csv"))
 source(here("src", "methods.R"))
 source(here("src", "helper_funs.R"))
 
+blocks <- as.Date(c("1979-01-01", "1989-01-01", "1999-01-01", 
+                    "2009-01-01", "2023-07-01"))
+
 # Testing method correctness ----------------------------------------------
 
 m_thresh <- markov_thresholds(zimbabwe, obs_col = "rain", est_col = "agera5_rain",
@@ -48,9 +51,6 @@ zimbabwe_t_by_season <- zimbabwe_t %>%
 
 source(here("src", "methods.R"))
 
-blocks <- as.Date(c("1979-01-01", "1989-01-01", "1999-01-01", 
-                    "2009-01-01", "2023-07-01"))
-
 zimbabwe_bc <- markov_loci(zimbabwe, obs_col = "rain", est_col = "agera5_rain", 
                  season_col = "season", station_col = "station",
                  blocks = blocks)
@@ -66,9 +66,6 @@ for (st in stations) {
   for (b in 1:(length(blocks) - 1)) {
     data_cal <- data_st %>%
       filter(!(date >= blocks[b] & date < blocks[b + 1]))
-    # data_apply <- data_st %>% 
-    #   filter(date >= blocks[b] & date < blocks[b + 1])
-    
     # Calculate thresholds on calibration data
     m_thresh_i <- markov_thresholds(data_cal, obs_col = "rain", est_col = "agera5_rain", 
                                     season_col = "season", station_col = "station")
@@ -95,7 +92,9 @@ m_thresh_res <- m_thresh %>%
   dplyr::select(-c(gamma_est_all:gamma_est_dry))
 
 # Table in supplementary material
-m_thresh_res
+m_thresh_res %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
+  write.csv(here("results", "TableS1.csv"), row.names = FALSE)
 
 m_thresh_p <- m_thresh %>%
   dplyr::select(block, station:iterations, p_obs:p_d_est) %>%
@@ -127,3 +126,6 @@ ggplot(m_thresh_p,
   coord_fixed(ratio = 1) +
   facet_grid(rows = vars(ptype_mc), cols = vars(station), axes = "all_x") +
   base_theme()
+
+ggsave(here("results", "Fig2.jpeg"),
+       width = 12, height = 6)
