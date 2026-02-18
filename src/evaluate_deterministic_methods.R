@@ -92,6 +92,9 @@ ggplot(zim_monthly_occ,
   col_scale_occ +
   base_theme() +
   theme(panel.grid.minor = element_blank())
+
+ggsave(here("results", "Fig3.jpeg"),
+       width = 12, height = 6)
   
 # Annual summaries --------------------------------------------------------
 
@@ -150,6 +153,9 @@ ggplot(zim_annual_occ,
        x = "Year",
        y = "Number of rain days")
 
+ggsave(here("results", "Fig4.jpeg"),
+       width = 12, height = 6)
+
 tbl_annual_occ_nrain <- zim_annual_occ_metrics %>%
   dplyr::select(station, source, n_rain_me, n_rain_cor) %>%
   pivot_longer(cols = c(n_rain_me, n_rain_cor), names_to = "metric",
@@ -160,7 +166,11 @@ tbl_annual_occ_nrain <- zim_annual_occ_metrics %>%
               names_sep = "_") %>%
   dplyr::select(station, sort(grep("^ME_", names(.), value = TRUE)),
     sort(grep("^cor_",  names(.), value = TRUE)))
-tbl_annual_occ_nrain
+
+tbl_annual_occ_nrain %>%
+  mutate(across(starts_with("ME"), ~ sprintf("%.2f", .x)),
+         across(starts_with("cor"), ~ sprintf("%.3f", .x))) %>%
+  write.csv(here("results", "Table2.csv"), row.names = FALSE)
 
 # Annual length of longest dry spell (October to March)
 ggplot(zim_annual_occ, 
@@ -173,6 +183,9 @@ ggplot(zim_annual_occ,
        x = "Year",
        y = "Maximum dry spell length (days)")
 
+ggsave(here("results", "Fig5.jpeg"),
+       width = 12, height = 6)
+
 tbl_annual_occ_maxdry <- zim_annual_occ_metrics %>%
   dplyr::select(station, source, max_dry_spell_me, max_dry_spell_cor) %>%
   pivot_longer(cols = c(max_dry_spell_me, max_dry_spell_cor), names_to = "metric",
@@ -183,7 +196,11 @@ tbl_annual_occ_maxdry <- zim_annual_occ_metrics %>%
               names_sep = "_") %>%
   dplyr::select(station, sort(grep("^ME_", names(.), value = TRUE)),
                 sort(grep("^cor_",  names(.), value = TRUE)))
-tbl_annual_occ_maxdry
+
+tbl_annual_occ_maxdry %>%
+  mutate(across(starts_with("ME"), ~ sprintf("%.2f", .x)),
+         across(starts_with("cor"), ~ sprintf("%.3f", .x))) %>%
+  write.csv(here("results", "Table3.csv"), row.names = FALSE)
 
 # Distribution of wet/dry spells ------------------------------------------
 
@@ -203,18 +220,6 @@ wet_spells <- zimbabwe_bc_stack_occ %>%
     r$lengths[r$values]
   })
 
-ggplot(dry_spells, aes(x = dry_spell_length, colour = source)) +
-  stat_ecdf(linewidth = 1) +
-  scale_x_log10(breaks = c(1, 5, 10, 30, 50)) +
-  facet_wrap(vars(station)) +
-  labs(
-    x = "Dry spell length (days)",
-    y = "Cumulative frequency of dry spell lengths",
-    colour = "Source"
-  ) +
-  col_scale_occ +
-  base_theme(panel.grid.minor = FALSE)
-
 ggplot(wet_spells, aes(x = wet_spell_length, colour = source)) +
   stat_ecdf(linewidth = 1) +
   scale_x_log10(breaks = c(1, 5, 10, 30, 50)) +
@@ -227,23 +232,8 @@ ggplot(wet_spells, aes(x = wet_spell_length, colour = source)) +
   col_scale_occ +
   base_theme(panel.grid.minor = FALSE)
 
-ks_results_dry <- dry_spells %>%
-  group_by(station) %>%
-  reframe(
-    map_dfr(c("AgERA5", "LOCI", "MC LOCI"), function(src) {
-      test <- ks.test(
-        dry_spell_length[source == "Gauge"],
-        dry_spell_length[source == src]
-      )
-      tibble(
-        source = src,
-        `K-S test statistic` = unname(test$statistic),
-        `p value` = test$p.value
-      )
-    })
-  ) %>%
-  ungroup()
-ks_results_dry
+ggsave(here("results", "Fig6.jpeg"),
+       width = 12, height = 6)
 
 ks_results_wet <- wet_spells %>%
   group_by(station) %>%
@@ -261,7 +251,50 @@ ks_results_wet <- wet_spells %>%
     })
   ) %>%
   ungroup()
-ks_results_wet
+
+ks_results_wet %>%
+  mutate(across(starts_with("K-S"), ~ sprintf("%.3f", .x)),
+         `p value` = ifelse(`p value` < 0.001, "<0.001", 
+                            sprintf("%.3f", `p value`))) %>%
+  write.csv(here("results", "Table4.csv"), row.names = FALSE)
+
+ggplot(dry_spells, aes(x = dry_spell_length, colour = source)) +
+  stat_ecdf(linewidth = 1) +
+  scale_x_log10(breaks = c(1, 5, 10, 30, 50)) +
+  facet_wrap(vars(station)) +
+  labs(
+    x = "Dry spell length (days)",
+    y = "Cumulative frequency of dry spell lengths",
+    colour = "Source"
+  ) +
+  col_scale_occ +
+  base_theme(panel.grid.minor = FALSE)
+
+ggsave(here("results", "Fig7.jpeg"),
+       width = 12, height = 6)
+
+ks_results_dry <- dry_spells %>%
+  group_by(station) %>%
+  reframe(
+    map_dfr(c("AgERA5", "LOCI", "MC LOCI"), function(src) {
+      test <- ks.test(
+        dry_spell_length[source == "Gauge"],
+        dry_spell_length[source == src]
+      )
+      tibble(
+        source = src,
+        `K-S test statistic` = unname(test$statistic),
+        `p value` = test$p.value
+      )
+    })
+  ) %>%
+  ungroup()
+
+ks_results_dry %>%
+  mutate(across(starts_with("K-S"), ~ sprintf("%.3f", .x)),
+         `p value` = ifelse(`p value` < 0.001, "<0.001", 
+                            sprintf("%.3f", `p value`))) %>%
+  write.csv(here("results", "Table5.csv"), row.names = FALSE)
 
 # Seasonal ----------------------------------------------------------------
 
@@ -318,6 +351,9 @@ ggplot(fitted_doy_df_0, aes(x = s_doy_date, y = fitted, color = source)) +
   col_scale_occ +
   base_theme(panel.grid.minor = FALSE)
 
+ggsave(here("results", "Fig8.jpeg"),
+       width = 12, height = 6)
+
 rain_ref <- fitted_doy_df_0 %>%
   filter(source == "Gauge") %>%
   dplyr::select(station, s_doy, fitted_rain = fitted)
@@ -328,7 +364,10 @@ rmse_rainday_0 <- fitted_doy_df_0 %>%
   group_by(station, source) %>%
   summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE))) %>%
   pivot_wider(names_from  = source, values_from = RMSE)
-rmse_rainday_0
+
+rmse_rainday_0 %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
+  write.csv(here("results", "Table6.csv"), row.names = FALSE)
 
 # Markov Chain First Order Rainday Models
 
@@ -380,6 +419,9 @@ ggplot(fitted_doy_df_1, aes(x = s_doy_date, y = fitted, color = source)) +
   facet_grid(rows = vars(lag_rainday_fct), cols = vars(station),
              axes = "all_x")
 
+ggsave(here("results", "Fig9.jpeg"),
+       width = 12, height = 6)
+
 rain_ref <- fitted_doy_df_1 %>%
   filter(source == "Gauge") %>%
   dplyr::select(station, s_doy, lag_rainday_fct, fitted_rain = fitted)
@@ -396,7 +438,9 @@ rmse_rainday_1_wide <- rmse_rainday_1 %>%
   rename(`Previous state` = lag_rainday_fct)
 
 # Include in supplementary material
-rmse_rainday_1_wide
+rmse_rainday_1_wide %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
+  write.csv(here("results", "TableS2.csv"), row.names = FALSE)
 
 ggplot(rmse_rainday_1,
        aes(x = lag_rainday_fct, y = RMSE, fill = source)) +
@@ -409,6 +453,9 @@ ggplot(rmse_rainday_1,
     ) +
   col_fill_occ +
   base_theme()
+
+ggsave(here("results", "Fig10.jpeg"),
+       width = 12, height = 6)
 
 # Rainfall occurrence detection -------------------------------------------
 
@@ -447,11 +494,16 @@ ggplot(zimbabwe_pod_hss_occ,
   col_fill_occ +
   base_theme(panel.grid.minor = FALSE)
 
+ggsave(here("results", "Fig11.jpeg"),
+       width = 12, height = 6)
+
 # Include table in supplementary material
 zimbabwe_pod_hss_occ_wide <- zimbabwe_pod_hss_occ %>%
   pivot_wider(names_from = metric, values_from = value)
 
-zimbabwe_pod_hss_occ_wide
+zimbabwe_pod_hss_occ_wide %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
+  write.csv(here("results", "TableS3.csv"), row.names = FALSE)
 
 # RAINFALL AMOUNTS --------------------------------------------------------
 
