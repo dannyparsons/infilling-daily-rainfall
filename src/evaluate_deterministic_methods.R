@@ -169,7 +169,7 @@ tbl_annual_occ_nrain <- zim_annual_occ_metrics %>%
 
 tbl_annual_occ_nrain %>%
   mutate(across(starts_with("ME"), ~ sprintf("%.2f", .x)),
-         across(starts_with("cor"), ~ sprintf("%.3f", .x))) %>%
+         across(starts_with("cor"), ~ sprintf("%.2f", .x))) %>%
   write.csv(here("results", "Table2.csv"), row.names = FALSE)
 
 # Annual length of longest dry spell (October to March)
@@ -199,7 +199,7 @@ tbl_annual_occ_maxdry <- zim_annual_occ_metrics %>%
 
 tbl_annual_occ_maxdry %>%
   mutate(across(starts_with("ME"), ~ sprintf("%.2f", .x)),
-         across(starts_with("cor"), ~ sprintf("%.3f", .x))) %>%
+         across(starts_with("cor"), ~ sprintf("%.2f", .x))) %>%
   write.csv(here("results", "Table3.csv"), row.names = FALSE)
 
 # Distribution of wet/dry spells ------------------------------------------
@@ -552,6 +552,9 @@ ggplot(zim_monthly_amt,
   col_scale_amt +
   base_theme()
 
+ggsave(here("results", "Fig12.jpeg"),
+       width = 12, height = 6)
+
 ggplot(zim_monthly_amt, 
        aes(x = month_abb, y = mean_rain, colour = source, group = source)) +
   geom_point() +
@@ -563,6 +566,9 @@ ggplot(zim_monthly_amt,
   col_scale_amt +
   base_theme()
 
+ggsave(here("results", "Fig13.jpeg"),
+       width = 12, height = 6)
+
 zim_monthly_amt_metrics <- zim_monthly_amt %>%
   dplyr::select(station, source, month_abb, mean_rain) %>%
   pivot_wider(names_from = source, values_from = mean_rain) %>%
@@ -572,7 +578,10 @@ zim_monthly_amt_metrics <- zim_monthly_amt %>%
   group_by(station, source) %>%
   summarise(RMSE = sqrt(mean((mean_rain_src - Gauge)^2))) %>%
   pivot_wider(names_from = source, values_from = RMSE)
-zim_monthly_amt_metrics
+
+zim_monthly_amt_metrics %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.2f", .x))) %>%
+  write.csv(here("results", "Table7.csv"), row.names = FALSE)
 
 ggplot(zim_monthly_amt, 
        aes(x = month_abb, y = max_rain, colour = source, group = source)) +
@@ -584,6 +593,9 @@ ggplot(zim_monthly_amt,
        y = "Maximum daily rainfall (mm)") +
   col_scale_amt +
   base_theme()
+
+ggsave(here("results", "Fig14.jpeg"),
+       width = 12, height = 6)
 
 # Annual summaries --------------------------------------------------------
 
@@ -611,7 +623,6 @@ zim_annual_amt_wide <- zim_annual_amt_wide %>%
          max_rain_diff = max_rain - max_rain_station,
          mean_rain_diff = mean_rain - mean_rain_station)
 
-# Full table in supplementary material
 zim_annual_amt_metrics <- zim_annual_amt_wide %>% 
   group_by(station, source) %>%
   summarise(t_rain_me = mean(t_rain_diff, na.rm = TRUE),
@@ -624,6 +635,10 @@ zim_annual_amt_metrics <- zim_annual_amt_wide %>%
             max_rain_cor = cor(max_rain, max_rain_station, use = "complete.obs"),
             max_rain_rsd = hydroGOF::rSD(max_rain, max_rain_station))
 
+zim_annual_amt_metrics %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.2f", .x))) %>%
+  write.csv(here("results", "Table8.csv"), row.names = FALSE)
+
 # Annual total rainfall
 ggplot(zim_annual_amt, 
        aes(x = s_year, y = t_rain, colour = source)) +
@@ -635,18 +650,19 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-# Question: Decide what to put in paper: graphs and/or tables?
+# Supp
 
-tbl_annual_amt_t_rain <- zim_annual_amt_metrics %>%
-  dplyr::select(station, source, t_rain_me, t_rain_cor, t_rain_rsd) %>%
-  pivot_longer(cols = c(t_rain_me, t_rain_cor, t_rain_rsd), names_to = "metric",
-               values_to = "value") %>%
-  mutate(metric = recode(metric, t_rain_me = "ME", t_rain_cor  = "cor",
-                         t_rain_rsd = "rSD"),
-         value = round(value, 3)) %>%
-  pivot_wider(names_from = source, values_from = value) %>%
-  arrange(metric, station)
-tbl_annual_amt_t_rain
+# Remove?
+# tbl_annual_amt_t_rain <- zim_annual_amt_metrics %>%
+#   dplyr::select(station, source, t_rain_me, t_rain_cor, t_rain_rsd) %>%
+#   pivot_longer(cols = c(t_rain_me, t_rain_cor, t_rain_rsd), names_to = "metric",
+#                values_to = "value") %>%
+#   mutate(metric = recode(metric, t_rain_me = "ME", t_rain_cor  = "cor",
+#                          t_rain_rsd = "rSD"),
+#          value = round(value, 3)) %>%
+#   pivot_wider(names_from = source, values_from = value) %>%
+#   arrange(metric, station)
+# tbl_annual_amt_t_rain
 
 # Annual mean rainfall
 ggplot(zim_annual_amt, 
@@ -659,16 +675,17 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-tbl_annual_amt_mean_rain <- zim_annual_amt_metrics %>%
-  dplyr::select(station, source, mean_rain_me, mean_rain_cor, mean_rain_rsd) %>%
-  pivot_longer(cols = c(mean_rain_me, mean_rain_cor, mean_rain_rsd), names_to = "metric",
-               values_to = "value") %>%
-  mutate(metric = recode(metric, mean_rain_me = "ME", mean_rain_cor  = "cor",
-                         mean_rain_rsd = "rSD"),
-         value = round(value, 3)) %>%
-  pivot_wider(names_from = source, values_from = value) %>%
-  arrange(metric, station)
-tbl_annual_amt_mean_rain
+# Remove?
+# tbl_annual_amt_mean_rain <- zim_annual_amt_metrics %>%
+#   dplyr::select(station, source, mean_rain_me, mean_rain_cor, mean_rain_rsd) %>%
+#   pivot_longer(cols = c(mean_rain_me, mean_rain_cor, mean_rain_rsd), names_to = "metric",
+#                values_to = "value") %>%
+#   mutate(metric = recode(metric, mean_rain_me = "ME", mean_rain_cor  = "cor",
+#                          mean_rain_rsd = "rSD"),
+#          value = round(value, 3)) %>%
+#   pivot_wider(names_from = source, values_from = value) %>%
+#   arrange(metric, station)
+# tbl_annual_amt_mean_rain
 
 # Annual max rainfall
 ggplot(zim_annual_amt, 
@@ -681,16 +698,19 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-tbl_annual_amt_max_rain <- zim_annual_amt_metrics %>%
-  dplyr::select(station, source, max_rain_me, max_rain_cor, max_rain_rsd) %>%
-  pivot_longer(cols = c(max_rain_me, max_rain_cor, max_rain_rsd), names_to = "metric",
-               values_to = "value") %>%
-  mutate(metric = recode(metric, max_rain_me = "ME", max_rain_cor  = "cor",
-                         max_rain_rsd = "rSD"),
-         value = round(value, 3)) %>%
-  pivot_wider(names_from = source, values_from = value) %>%
-  arrange(metric, station)
-tbl_annual_amt_max_rain
+# Supp
+
+# Remove?
+# tbl_annual_amt_max_rain <- zim_annual_amt_metrics %>%
+#   dplyr::select(station, source, max_rain_me, max_rain_cor, max_rain_rsd) %>%
+#   pivot_longer(cols = c(max_rain_me, max_rain_cor, max_rain_rsd), names_to = "metric",
+#                values_to = "value") %>%
+#   mutate(metric = recode(metric, max_rain_me = "ME", max_rain_cor  = "cor",
+#                          max_rain_rsd = "rSD"),
+#          value = round(value, 3)) %>%
+#   pivot_wider(names_from = source, values_from = value) %>%
+#   arrange(metric, station)
+# tbl_annual_amt_max_rain
 
 # Seasonal ----------------------------------------------------------------
 
