@@ -33,6 +33,18 @@ c25 <- c(
   "darkorange4", "brown"
 )
 
+closest_point <- function(points, target) {
+  if(is.vector(target)) {
+    ind <- which.min(sp::spDistsN1(pts = as.matrix(points), pt = target))
+    return(c(points[ind, 1], points[ind, 2]))
+  }
+  else if(is.data.frame(target)) {
+    inds <- apply(target, 1, function(r) which.min(sp::spDistsN1(pts = as.matrix(points),
+                                                                 pt = c(r[[1]], r[[2]]))))
+    return(points[inds, ])
+  }
+}
+
 display_daily <- function(Datain,Stations,Variables,option=1,Years,Misscode,Tracecode,Zerocode,Fileout=NA,monstats=c("min","mean","median","max","IQR","sum")){
   #-----------------------------------------------------------------------#
   # Helen Greatrex, SSC, SSC-RCLIM package                                #

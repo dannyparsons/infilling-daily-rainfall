@@ -631,7 +631,7 @@ zim_annual_amt_metrics <- zim_annual_amt_wide %>%
             mean_rain_me = mean(mean_rain_diff, na.rm = TRUE),
             mean_rain_cor = cor(mean_rain, mean_rain_station, use = "complete.obs"),
             mean_rain_rsd = hydroGOF::rSD(mean_rain, mean_rain_station),
-            max_rain_me = mean(mean_rain_diff, na.rm = TRUE),
+            max_rain_me = mean(max_rain_diff, na.rm = TRUE),
             max_rain_cor = cor(max_rain, max_rain_station, use = "complete.obs"),
             max_rain_rsd = hydroGOF::rSD(max_rain, max_rain_station))
 
@@ -650,19 +650,8 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-# Supp
-
-# Remove?
-# tbl_annual_amt_t_rain <- zim_annual_amt_metrics %>%
-#   dplyr::select(station, source, t_rain_me, t_rain_cor, t_rain_rsd) %>%
-#   pivot_longer(cols = c(t_rain_me, t_rain_cor, t_rain_rsd), names_to = "metric",
-#                values_to = "value") %>%
-#   mutate(metric = recode(metric, t_rain_me = "ME", t_rain_cor  = "cor",
-#                          t_rain_rsd = "rSD"),
-#          value = round(value, 3)) %>%
-#   pivot_wider(names_from = source, values_from = value) %>%
-#   arrange(metric, station)
-# tbl_annual_amt_t_rain
+ggsave(here("results", "FigS1.jpeg"),
+       width = 12, height = 6)
 
 # Annual mean rainfall
 ggplot(zim_annual_amt, 
@@ -675,17 +664,8 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-# Remove?
-# tbl_annual_amt_mean_rain <- zim_annual_amt_metrics %>%
-#   dplyr::select(station, source, mean_rain_me, mean_rain_cor, mean_rain_rsd) %>%
-#   pivot_longer(cols = c(mean_rain_me, mean_rain_cor, mean_rain_rsd), names_to = "metric",
-#                values_to = "value") %>%
-#   mutate(metric = recode(metric, mean_rain_me = "ME", mean_rain_cor  = "cor",
-#                          mean_rain_rsd = "rSD"),
-#          value = round(value, 3)) %>%
-#   pivot_wider(names_from = source, values_from = value) %>%
-#   arrange(metric, station)
-# tbl_annual_amt_mean_rain
+ggsave(here("results", "Fig15.jpeg"),
+       width = 12, height = 6)
 
 # Annual max rainfall
 ggplot(zim_annual_amt, 
@@ -698,19 +678,8 @@ ggplot(zim_annual_amt,
   col_scale_amt + 
   base_theme()
 
-# Supp
-
-# Remove?
-# tbl_annual_amt_max_rain <- zim_annual_amt_metrics %>%
-#   dplyr::select(station, source, max_rain_me, max_rain_cor, max_rain_rsd) %>%
-#   pivot_longer(cols = c(max_rain_me, max_rain_cor, max_rain_rsd), names_to = "metric",
-#                values_to = "value") %>%
-#   mutate(metric = recode(metric, max_rain_me = "ME", max_rain_cor  = "cor",
-#                          max_rain_rsd = "rSD"),
-#          value = round(value, 3)) %>%
-#   pivot_wider(names_from = source, values_from = value) %>%
-#   arrange(metric, station)
-# tbl_annual_amt_max_rain
+ggsave(here("results", "FigS2.jpeg"),
+       width = 12, height = 6)
 
 # Seasonal ----------------------------------------------------------------
 
@@ -765,6 +734,9 @@ ggplot(fitted_doy_df_0_amounts,
   col_scale_amt + 
   base_theme()
 
+ggsave(here("results", "Fig16.jpeg"),
+       width = 12, height = 6)
+
 rain_ref <- fitted_doy_df_0_amounts %>%
   filter(source == "Gauge") %>%
   dplyr::select(station, s_doy, fitted_rain = fitted)
@@ -775,7 +747,10 @@ rmse_rain_amounts_0 <- fitted_doy_df_0_amounts %>%
   group_by(station, source) %>%
   summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE))) %>%
   pivot_wider(names_from  = source, values_from = RMSE)
-rmse_rain_amounts_0
+
+rmse_rain_amounts_0 %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.2f", .x))) %>%
+  write.csv(here("results", "Table9.csv"), row.names = FALSE)
 
 # Markov Chain First Order Rainfall Models
 
@@ -824,6 +799,9 @@ ggplot(fitted_doy_df_1_amounts,
   base_theme() +
   col_scale_amt
 
+ggsave(here("results", "Fig17.jpeg"),
+       width = 12, height = 6)
+
 rain_ref <- fitted_doy_df_1_amounts %>%
   filter(source == "Gauge") %>%
   dplyr::select(station, s_doy, lag_rainday_fct, fitted_rain = fitted)
@@ -835,7 +813,10 @@ rmse_rain_amounts_1 <- fitted_doy_df_1_amounts %>%
   summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE)))
 
 # Include table in supplementary material
-rmse_rain_amounts_1
+rmse_rain_amounts_1 %>%
+  pivot_wider(names_from = lag_rainday_fct, values_from = RMSE) %>%
+  mutate(across(where(is.numeric), ~ sprintf("%.2f", .x))) %>%
+  write.csv(here("results", "TableS4.csv"), row.names = FALSE)
 
 ggplot(rmse_rain_amounts_1,
        aes(x = lag_rainday_fct, y = RMSE, fill = source)) +
@@ -848,6 +829,9 @@ ggplot(rmse_rain_amounts_1,
   ) +
   base_theme() +
   col_fill_amt
+
+ggsave(here("results", "Fig18.jpeg"),
+       width = 12, height = 6)
 
 # POD and HSS for rainfall categories -------------------------------------
 
@@ -914,3 +898,6 @@ ggplot(zimbabwe_pod_hss_amt_long, aes(x = metric, y = value, fill = source)) +
   theme(
     axis.text.x = element_text(angle = 25, hjust = 1),
   )
+
+ggsave(here("results", "Fig19.jpeg"),
+       width = 12, height = 6)

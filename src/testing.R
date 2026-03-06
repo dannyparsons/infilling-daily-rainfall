@@ -96,27 +96,46 @@ zimbabwe <- readr::read_csv(here("data", "zim_five_stations.csv"))
 
 zimbabwe_stations <- readr::read_csv(here("data", "zimbabwe_stations.csv"))
 library(maps)
+library(ggrepel)
+
+map_labels <- function(x, xy) {
+  stopifnot(xy %in% c("x", "y"))
+  if (xy == "x") {
+    pos <- "E"
+    neg <- "W"
+  } else if (xy == "y") {
+    pos <- "N"
+    neg <- "S"
+  }
+  y <- ifelse(x == 0, "0°", x)
+  y <- ifelse(x > 0, paste0(x, "° ", pos), ifelse(x < 0, paste0(-x, "° ", neg), y))
+  y
+}
+x_map_labels <- function(x) map_labels(x, "x")
+y_map_labels <- function(x) map_labels(x, "y")
+
 zimbabwe_map <- map_data("world", region = "Zimbabwe")
 ggplot() +
   geom_polygon(
     data = zimbabwe_map,
     aes(x = long, y = lat, group = group),
-    fill = "gray90", color = "black"
+    fill = "antiquewhite", color = "black"
   ) +
   geom_point(
     data = zimbabwe_stations,
     aes(x = lon, y = lat),
-    color = "red", size = 3
+    color = "black", size = 3
   ) +
-  geom_text(
+  geom_label_repel(
     data = zimbabwe_stations,
     aes(x = lon, y = lat, label = station),
-    vjust = -1, size = 3
+    size = 5
   ) +
   coord_quickmap() +
+  scale_x_continuous(labels = x_map_labels) +
+  scale_y_continuous(labels = y_map_labels) +
   theme_minimal() +
-  labs(title = "Station Locations in Zimbabwe",
-       x = "Longitude", y = "Latitude")
+  labs(x = "Longitude", y = "Latitude")
 
 zimbabwe_tamsat_list <- list()
 for (i in seq_along(zimbabwe_stations$station)) {
