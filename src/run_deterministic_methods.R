@@ -6,6 +6,7 @@ library(lubridate)
 library(ggplot2)
 library(purrr)
 library(tidyr)
+library(tibble)
 
 # Setup -------------------------------------------------------------------
 
@@ -62,6 +63,7 @@ saveRDS(zimbabwe_bc, here("data", "BC_data", "zimbabwe_agera5_bc.RDS"))
 m_thresh <- list()
 stations <- unique(zimbabwe$station)
 for (st in stations) {
+  print(st)
   data_st <- zimbabwe %>% filter(station == st)
   for (b in 1:(length(blocks) - 1)) {
     data_cal <- data_st %>%
@@ -80,7 +82,7 @@ m_thresh$station <- recode(m_thresh$station,
 
 m_thresh_res <- m_thresh %>%
   dplyr::select(block, station:iterations, 
-                p_obs:p_d_est,
+                p0_obs:p_d_est,
                 s_all, s_wet, s_dry,
                 gamma_est_all, gamma_est_wet, gamma_est_dry) %>%
   mutate(gamma_all_shape = map_dbl(gamma_est_all, ~ .x$estimate["shape"]),
@@ -91,10 +93,17 @@ m_thresh_res <- m_thresh %>%
          gamma_dry_rate = map_dbl(gamma_est_dry, ~ .x$estimate["rate"])) %>%
   dplyr::select(-c(gamma_est_all:gamma_est_dry))
 
-# Table in supplementary material
+m_thresh_res <- m_thresh_res %>% 
+  mutate(t_diff = t_w - t_d) %>%
+  relocate(t_diff, .after = t_d)
+
+mean(abs(m_thresh_res$t_diff))
+max(abs(m_thresh_res$t_diff))
+
+# Table in supplementary material 1
 m_thresh_res %>%
   mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
-  write.csv(here("results", "TableS1.csv"), row.names = FALSE)
+  write.csv(here("results", "Supplementary Material 1.csv"), row.names = FALSE)
 
 m_thresh_p <- m_thresh %>%
   dplyr::select(block, station:iterations, p_obs:p_d_est) %>%

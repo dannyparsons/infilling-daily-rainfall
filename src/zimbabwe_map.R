@@ -65,3 +65,22 @@ ggplot() +
 
 ggsave(here("results", "Fig1.jpeg"),
        width = 12, height = 6)
+
+
+# Station information -----------------------------------------------------
+
+zimbabwe_bc <- read_rds(here("data", "BC_data", "zimbabwe_agera5_bc.RDS"))
+zimbabwe_bc$station <- gsub("_", " ", zimbabwe_bc$station)
+
+zimbabwe_station_info <- zimbabwe_bc %>%
+  group_by(station) %>%
+  summarise(`Complete Days (%)` = mean(!is.na(rain)) * 100)
+
+table1 <- left_join(zimbabwe_stations, zimbabwe_station_info)
+names(table1)[1:3] <- c("Station", "Latitude", "Longitude")
+
+table1 %>%
+  mutate(Latitude = sprintf("%.2f", Latitude),
+         Longitude = sprintf("%.2f", Longitude),
+         `Complete Days (%)` = sprintf("%.1f", `Complete Days (%)`)) %>%
+  write.csv(here("results", "Table1.csv"), row.names = FALSE)

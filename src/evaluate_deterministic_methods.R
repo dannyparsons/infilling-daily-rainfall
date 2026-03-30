@@ -50,8 +50,6 @@ zimbabwe_bc_stack$station <- recode(zimbabwe_bc_stack$station,
 # since rain days are constructed the same way
 occurrence_source <- c("Gauge", "AgERA5", "LOCI", "MC LOCI")
 
-# Suggesting to only use the Gamma version of QM in the paper
-# Don't think there's any added value including Empirical version as well
 amounts_source <- c(occurrence_source, "QM", "MC QM")
 
 # RAINFALL OCCURRENCE -----------------------------------------------------
@@ -59,11 +57,14 @@ amounts_source <- c(occurrence_source, "QM", "MC QM")
 zimbabwe_bc_stack_occ <- zimbabwe_bc_stack %>%
   filter(source %in% occurrence_source)
 
+zimbabwe_bc_stack_occ$source <- recode(zimbabwe_bc_stack_occ$source,
+                                       LOCI = "LOCI/QM", `MC LOCI` = "MC")
+
 col_values_occ <- c(
   Gauge = "black",
   AgERA5 = "#E31A1C",
-  LOCI = "dodgerblue2",
-  `MC LOCI` = "green4"
+  `LOCI/QM` = "dodgerblue2",
+  MC = "green4"
 )
 
 col_scale_occ <- scale_colour_manual(
@@ -82,19 +83,24 @@ zim_monthly_occ <- zimbabwe_bc_stack_occ %>%
   summarise(n_rain = mean(n_rain, na.rm = TRUE))
 
 ggplot(zim_monthly_occ,
-       aes(x = month_abb, y = n_rain, colour = source, group = source)) +
+       aes(x = month_abb, y = n_rain, colour = source, group = source,
+           linewidth = source)) +
   geom_point() +
   geom_line() +
   facet_wrap(vars(station)) +
   labs(colour = "Source",
+       linewidth = "Source",
        x = "Month",
        y = "Mean number of rain days") +
   col_scale_occ +
-  base_theme() +
-  theme(panel.grid.minor = element_blank())
+  scale_linewidth_manual(values = c("Gauge" = 1.2,
+                                   "AgERA5" = 0.5,
+                                   "LOCI/QM" = 0.5,
+                                   "MC" = 0.5)) +
+  base_theme(panel.grid.minor = TRUE)
 
-ggsave(here("results", "Fig3.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig3.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
   
 # Annual summaries --------------------------------------------------------
 
@@ -153,8 +159,8 @@ ggplot(zim_annual_occ,
        x = "Year",
        y = "Number of rain days")
 
-ggsave(here("results", "Fig4.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig4.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 tbl_annual_occ_nrain <- zim_annual_occ_metrics %>%
   dplyr::select(station, source, n_rain_me, n_rain_cor) %>%
@@ -170,7 +176,7 @@ tbl_annual_occ_nrain <- zim_annual_occ_metrics %>%
 tbl_annual_occ_nrain %>%
   mutate(across(starts_with("ME"), ~ sprintf("%.2f", .x)),
          across(starts_with("cor"), ~ sprintf("%.2f", .x))) %>%
-  write.csv(here("results", "Table2.csv"), row.names = FALSE)
+  write.csv(here("results", "Table5.csv"), row.names = FALSE)
 
 # Annual length of longest dry spell (October to March)
 ggplot(zim_annual_occ, 
@@ -183,8 +189,8 @@ ggplot(zim_annual_occ,
        x = "Year",
        y = "Maximum dry spell length (days)")
 
-ggsave(here("results", "Fig5.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig5.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 tbl_annual_occ_maxdry <- zim_annual_occ_metrics %>%
   dplyr::select(station, source, max_dry_spell_me, max_dry_spell_cor) %>%
@@ -200,7 +206,7 @@ tbl_annual_occ_maxdry <- zim_annual_occ_metrics %>%
 tbl_annual_occ_maxdry %>%
   mutate(across(starts_with("ME"), ~ sprintf("%.2f", .x)),
          across(starts_with("cor"), ~ sprintf("%.2f", .x))) %>%
-  write.csv(here("results", "Table3.csv"), row.names = FALSE)
+  write.csv(here("results", "Table6.csv"), row.names = FALSE)
 
 # Distribution of wet/dry spells ------------------------------------------
 
@@ -232,13 +238,13 @@ ggplot(wet_spells, aes(x = wet_spell_length, colour = source)) +
   col_scale_occ +
   base_theme(panel.grid.minor = FALSE)
 
-ggsave(here("results", "Fig6.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig6.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 ks_results_wet <- wet_spells %>%
   group_by(station) %>%
   reframe(
-    map_dfr(c("AgERA5", "LOCI", "MC LOCI"), function(src) {
+    map_dfr(c("AgERA5", "LOCI/QM", "MC"), function(src) {
       test <- ks.test(
         wet_spell_length[source == "Gauge"],
         wet_spell_length[source == src]
@@ -256,7 +262,7 @@ ks_results_wet %>%
   mutate(across(starts_with("K-S"), ~ sprintf("%.3f", .x)),
          `p value` = ifelse(`p value` < 0.001, "<0.001", 
                             sprintf("%.3f", `p value`))) %>%
-  write.csv(here("results", "Table4.csv"), row.names = FALSE)
+  write.csv(here("results", "Table7.csv"), row.names = FALSE)
 
 ggplot(dry_spells, aes(x = dry_spell_length, colour = source)) +
   stat_ecdf(linewidth = 1) +
@@ -270,13 +276,13 @@ ggplot(dry_spells, aes(x = dry_spell_length, colour = source)) +
   col_scale_occ +
   base_theme(panel.grid.minor = FALSE)
 
-ggsave(here("results", "Fig7.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig7.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 ks_results_dry <- dry_spells %>%
   group_by(station) %>%
   reframe(
-    map_dfr(c("AgERA5", "LOCI", "MC LOCI"), function(src) {
+    map_dfr(c("AgERA5", "LOCI/QM", "MC"), function(src) {
       test <- ks.test(
         dry_spell_length[source == "Gauge"],
         dry_spell_length[source == src]
@@ -294,7 +300,7 @@ ks_results_dry %>%
   mutate(across(starts_with("K-S"), ~ sprintf("%.3f", .x)),
          `p value` = ifelse(`p value` < 0.001, "<0.001", 
                             sprintf("%.3f", `p value`))) %>%
-  write.csv(here("results", "Table5.csv"), row.names = FALSE)
+  write.csv(here("results", "Table8.csv"), row.names = FALSE)
 
 # Seasonal ----------------------------------------------------------------
 
@@ -346,13 +352,14 @@ ggplot(fitted_doy_df_0, aes(x = s_doy_date, y = fitted, color = source)) +
   labs(
     x = "Date",
     y = "Rain day probability",
-    color = "Source"
+    color = "Source",
+    linewidth = "Source"
   ) +
   col_scale_occ +
   base_theme(panel.grid.minor = FALSE)
 
-ggsave(here("results", "Fig8.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig8.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 rain_ref <- fitted_doy_df_0 %>%
   filter(source == "Gauge") %>%
@@ -367,7 +374,7 @@ rmse_rainday_0 <- fitted_doy_df_0 %>%
 
 rmse_rainday_0 %>%
   mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
-  write.csv(here("results", "Table6.csv"), row.names = FALSE)
+  write.csv(here("results", "Table9.csv"), row.names = FALSE)
 
 # Markov Chain First Order Rainday Models
 
@@ -419,8 +426,8 @@ ggplot(fitted_doy_df_1, aes(x = s_doy_date, y = fitted, color = source)) +
   facet_grid(rows = vars(lag_rainday_fct), cols = vars(station),
              axes = "all_x")
 
-ggsave(here("results", "Fig9.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig9.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 rain_ref <- fitted_doy_df_1 %>%
   filter(source == "Gauge") %>%
@@ -454,8 +461,8 @@ ggplot(rmse_rainday_1,
   col_fill_occ +
   base_theme()
 
-ggsave(here("results", "Fig10.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig10.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 # Rainfall occurrence detection -------------------------------------------
 
@@ -467,7 +474,7 @@ zimbabwe_bc_stack_station_occ <- zimbabwe_bc_stack_occ %>%
   dplyr::select(station, date, rainday_station, rr_station)
 
 zimbabwe_bc_comp_occ <- zimbabwe_bc_stack_occ %>%
-  filter(source != "Gauge" & source %in% occurrence_source) %>%
+  filter(source != "Gauge" & source %in% c("AgERA5", "LOCI/QM", "MC")) %>%
   left_join(zimbabwe_bc_stack_station_occ, by = c("station", "date"))
 
 zimbabwe_pod_hss_occ <- zimbabwe_bc_comp_occ %>%
@@ -494,8 +501,8 @@ ggplot(zimbabwe_pod_hss_occ,
   col_fill_occ +
   base_theme(panel.grid.minor = FALSE)
 
-ggsave(here("results", "Fig11.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig11.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 # Include table in supplementary material
 zimbabwe_pod_hss_occ_wide <- zimbabwe_pod_hss_occ %>%

@@ -1,5 +1,9 @@
 library(here)
 library(dplyr)
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
 
 source(here("src", "helper_funs.R"))
 
@@ -7,6 +11,20 @@ source(here("src", "helper_funs.R"))
 # Data from http://hanschen.org/koppen
 
 koppen <- read.table(here("data", "koppen_1901-2010.tsv"), header = TRUE)
+
+koppen_zim <- koppen %>%
+  filter(longitude >= 25 & longitude <= 34 & latitude  >= -23 & latitude  <= -15)
+
+zim <- ne_countries(scale = "medium", country = "Zimbabwe", returnclass = "sf")
+
+ggplot() +
+  geom_tile(data = koppen_zim,
+            aes(x = longitude, y = latitude, fill = p1901_2010)) +
+  geom_sf(data = zim, fill = NA, color = "black", linewidth = 0.7) +
+  coord_sf(xlim = c(25, 34), ylim = c(-23, -15), expand = FALSE) +
+  scale_fill_discrete(drop = TRUE) +
+  theme_minimal() +
+  labs(fill = "Koppen class")
 
 zimbabwe_stations <- readr::read_csv(here("data", "zimbabwe_stations.csv"))
 
