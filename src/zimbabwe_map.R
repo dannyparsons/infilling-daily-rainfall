@@ -63,9 +63,8 @@ ggplot() +
   base_theme() +
   labs(x = "Longitude", y = "Latitude")
 
-ggsave(here("results", "Fig1.jpeg"),
-       width = 12, height = 6)
-
+ggsave(here("results", "Fig1.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
 
 # Station information -----------------------------------------------------
 

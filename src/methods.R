@@ -159,8 +159,7 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
     p_w_est = numeric(),
     p_d_obs = numeric(),
     p_d_est = numeric(),
-    converged = logical(),
-    within_tol = logical(),
+    converged = character(),
     iterations = integer(),
     n_days = integer(),
     s_all = numeric(),
@@ -203,11 +202,8 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
                      names = FALSE)
       t_d <- t0
       t_w <- t0
-      # Set to TRUE if probabilities converged to within tolerance of targets
-      converged <- FALSE
-      # Set to TRUE if probabilities converged to a value but not within tolerance
-      # of targets
-      within_tol <- FALSE
+      # State of convergence, either: "tol", "neg diff" or "no"
+      converged <- "no"
       n_same <- 0
       # Iterate to converge to target probabilities
       for (i in 1:max_it) {
@@ -254,13 +250,12 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
         # Stop if probabilities are within tolerance of targets
         else if ((abs(p_w_est - p_w_obs) < max(tol, tol_w) && 
                   abs(p_d_est - p_d_obs) < max(tol, tol_d))) {
-          converged <- TRUE
+          converged <- "within tol"
           break
-          # Stop if probabilities are converging within a tolerance 
+          # Stop if difference in probabilities is within negligible difference
           # after n_conv iterations
         } else if (n_same >= n_conv) {
-          converged <- TRUE
-          within_tol <- TRUE
+          converged <- "neg diff"
           break
         }
         
@@ -332,8 +327,7 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
                         p0_obs = p_obs, p0_est = p_est, p_w_obs = p_w_obs, 
                         p_w_est = p_w_est, p_d_obs = p_d_obs, 
                         p_d_est = p_d_est, converged = converged, 
-                        within_tol = within_tol, iterations = i,
-                        n_days = nrow(data_m), 
+                        iterations = i, n_days = nrow(data_m), 
                         s_all = s_all, s_wet = s_wet, s_dry = s_dry,
                         obs_all = list(obs_all), obs_wet = list(obs_wet), 
                         obs_dry = list(obs_dry),

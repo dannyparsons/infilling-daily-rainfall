@@ -103,14 +103,14 @@ max(abs(m_thresh_res$t_diff))
 # Table in supplementary material 1
 m_thresh_res %>%
   mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
-  write.csv(here("results", "Supplementary Material 1.csv"), row.names = FALSE)
+  write.csv(here("results", "TableS1.csv"), row.names = FALSE)
 
 m_thresh_p <- m_thresh %>%
-  dplyr::select(block, station:iterations, p_obs:p_d_est) %>%
+  dplyr::select(block, station:iterations, p0_obs:p_d_est) %>%
   pivot_longer(
-    cols = c(p_obs:p_d_est),
+    cols = c(p0_obs:p_d_est),
     names_to = c("ptype", "source"),
-    names_pattern = "(p|p_w|p_d)_(obs|est)",
+    names_pattern = "(p0|p_w|p_d)_(obs|est)",
     values_to = "p"
   ) %>%
   pivot_wider(
@@ -118,8 +118,8 @@ m_thresh_p <- m_thresh %>%
     values_from = p
   ) %>%
   mutate(
-    ptype = factor(ptype, levels = c("p", "p_w", "p_d")),
-    ptype_mc = factor(ifelse(ptype == "p", "Unconditional", "Conditional"),
+    ptype = factor(ptype, levels = c("p0", "p_w", "p_d")),
+    ptype_mc = factor(ifelse(ptype == "p0", "Unconditional", "Conditional"),
                       levels = c("Unconditional", "Conditional")),
     diff = est - obs
   )
@@ -128,13 +128,13 @@ ggplot(m_thresh_p,
        aes(x = obs, y = est, colour = ptype)) +
   geom_abline() +
   geom_point() +
-  labs(x = "Target Probability", y = "Achieved Probabilty", colour = "Probability") +
+  labs(x = "Target Probability", y = "Calibrated Probabilty", colour = "Probability") +
   scale_colour_manual(
-    labels = c(p = expression(p[0]), p_w = expression(p[w]), p_d = expression(p[d])),
-    values = c(p = "#E31A1C", p_d = "dodgerblue2", p_w = "green4")) +
+    labels = c(p0 = expression(p[0]), p_w = expression(p[w]), p_d = expression(p[d])),
+    values = c(p0 = "#E31A1C", p_d = "dodgerblue2", p_w = "green4")) +
   coord_fixed(ratio = 1) +
   facet_grid(rows = vars(ptype_mc), cols = vars(station), axes = "all_x") +
   base_theme()
 
-ggsave(here("results", "Fig2.jpeg"),
-       width = 12, height = 6)
+ggsave(here("results", "Fig2.png"), bg = "white",
+       dpi = 600, width = 12, height = 6)
