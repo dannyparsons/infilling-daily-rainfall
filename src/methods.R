@@ -104,7 +104,6 @@ conditional_wd <- function(x, t_w, t_d, t0, y0) {
   if (length(t_w) == 1) t_w <- rep(t_w, n)
   if (length(t_d) == 1) t_d <- rep(t_d, n)
   if (length(t0) == 1) t0 <- rep(t0, n)
-  
   # Set first value based only on y0 (if available) and x[1]
   if (!missing(y0) && !is.na(y0)) {
     y[1] <- if(y0) x[1] > t_w[1] else x[1] > t_d[1]

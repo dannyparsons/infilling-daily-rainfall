@@ -18,6 +18,13 @@ zimbabwe_bc_stack <- zimbabwe_bc %>%
   dplyr::select(station, date, year, month, day, season, rain, agera5_rain, est_loci:est_qm_gamma_mk) %>%
   pivot_longer(cols = c(rain, agera5_rain, est_loci:est_qm_gamma_mk), names_to = "source", values_to = "rr")
 
+blocks <- as.Date(c("1979-01-01", "1989-01-01", "1999-01-01", 
+                    "2009-01-01", "2023-07-01"))
+
+zimbabwe_bc_stack <- zimbabwe_bc_stack %>%
+  mutate(block = cut(date, breaks = blocks, include.lowest = TRUE, right = FALSE,
+                     labels = paste0("block_", 1:4)))
+
 # 1 Aug = 214
 s_doy_start <- 214
 
@@ -302,6 +309,94 @@ ks_results_dry %>%
                             sprintf("%.3f", `p value`))) %>%
   write.csv(here("results", "Table8.csv"), row.names = FALSE)
 
+# By block
+
+dry_spells_block <- zimbabwe_bc_stack_occ %>%
+  group_by(station, source, block, s_year) %>%
+  filter(month %in% c(10:12, 1:3)) %>%
+  reframe(dry_spell_length = {
+    r <- rle(!rainday)
+    r$lengths[r$values]
+  })
+
+wet_spells_block <- zimbabwe_bc_stack_occ %>%
+  group_by(station, source, block, s_year) %>%
+  filter(month %in% c(10:12, 1:3)) %>%
+  reframe(wet_spell_length = {
+    r <- rle(rainday)
+    r$lengths[r$values]
+  })
+
+ks_results_wet_block <- wet_spells_block %>%
+  group_by(station, block) %>%
+  reframe(
+    map_dfr(c("AgERA5", "LOCI/QM", "MC"), function(src) {
+      test <- ks.test(
+        wet_spell_length[source == "Gauge"],
+        wet_spell_length[source == src]
+      )
+      tibble(
+        source = src,
+        `K-S test statistic` = unname(test$statistic),
+        `p value` = test$p.value
+      )
+    })
+  ) %>%
+  ungroup()
+
+ks_summary_wet_block <- ks_results_wet_block %>%
+  group_by(source) %>%
+  summarise(
+    mean = mean(`K-S test statistic`, na.rm = TRUE),
+    sd = sd(`K-S test statistic`, na.rm = TRUE)
+  ) %>%
+  mutate(statistic = "K-S test statistic - wet spells")
+
+ks_results_wet_block_wide <- ks_results_wet_block %>%
+  dplyr::select(station, block, source, `K-S test statistic`) %>%
+  tidyr::pivot_wider(
+    names_from = source,
+    values_from = `K-S test statistic`
+  )
+
+sum(ks_results_wet_block_wide$MC < ks_results_wet_block_wide$`LOCI/QM`, na.rm = TRUE)
+sum(ks_results_wet_block_wide$MC < ks_results_wet_block_wide$AgERA5, na.rm = TRUE)
+
+ks_results_dry_block <- dry_spells_block %>%
+  group_by(station, block) %>%
+  reframe(
+    map_dfr(c("AgERA5", "LOCI/QM", "MC"), function(src) {
+      test <- ks.test(
+        dry_spell_length[source == "Gauge"],
+        dry_spell_length[source == src]
+      )
+      tibble(
+        source = src,
+        `K-S test statistic` = unname(test$statistic),
+        `p value` = test$p.value
+      )
+    })
+  ) %>%
+  ungroup()
+
+ks_summary_dry_block <- ks_results_dry_block %>%
+  group_by(source) %>%
+  summarise(
+    mean = mean(`K-S test statistic`, na.rm = TRUE),
+    sd = sd(`K-S test statistic`, na.rm = TRUE)
+  ) %>%
+  mutate(statistic = "K-S test statistic - dry spells")
+
+ks_results_dry_block_wide <- ks_results_dry_block %>%
+  dplyr::select(station, block, source, `K-S test statistic`) %>%
+  tidyr::pivot_wider(
+    names_from = source,
+    values_from = `K-S test statistic`
+  )
+
+sum(ks_results_dry_block_wide$MC < ks_results_dry_block_wide$`LOCI/QM`, na.rm = TRUE)
+sum(ks_results_dry_block_wide$MC < ks_results_dry_block_wide$AgERA5, na.rm = TRUE)
+
 # Seasonal ----------------------------------------------------------------
 
 # Markov Chain Zero Order Rainday Models
@@ -464,6 +559,101 @@ ggplot(rmse_rainday_1,
 ggsave(here("results", "Fig10.png"), bg = "white",
        dpi = 600, width = 12, height = 6)
 
+# By block
+
+# zero order
+
+mc_models_0_block <- zimbabwe_bc_stack_occ %>%
+  group_by(source, station, block) %>%
+  group_modify(~ tibble(m = list(fit_zero_order_markov(.x)))) %>%
+  ungroup()
+
+doy_df <- tibble(s_doy = 1:366, 
+                 s_doy_date = as.Date(1:366, origin = as.Date("1999/07/31")))
+fitted_list <- list()
+for (i in seq_len(nrow(mc_models_0_block))) {
+  
+  # Extract info for this model
+  src <- mc_models_0_block$source[i]
+  stn <- mc_models_0_block$station[i]
+  blk <- mc_models_0_block$block[i]
+  mod <- mc_models_0_block$m[[i]]
+  
+  # Predict probabilities
+  preds <- predict(mod, newdata = doy_df, type = "response")
+  
+  # Combine into a tibble
+  fitted_list[[i]] <- tibble(
+    source = src,
+    station = stn,
+    block = blk,
+    s_doy = doy_df$s_doy,
+    s_doy_date = doy_df$s_doy_date,
+    fitted = preds
+  )
+}
+fitted_doy_df_0_block <- bind_rows(fitted_list)
+
+rain_ref_block <- fitted_doy_df_0_block %>%
+  filter(source == "Gauge") %>%
+  dplyr::select(station, block, s_doy, fitted_rain = fitted)
+
+rmse_rainday_0_block <- fitted_doy_df_0_block %>%
+  filter(source != "Gauge") %>%
+  left_join(rain_ref_block, by = c("station", "block", "s_doy")) %>%
+  group_by(station, block, source) %>%
+  summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE))) %>%
+  group_by(source) %>%
+  summarise(mean = mean(RMSE, na.rm = TRUE),
+            sd = sd(RMSE, na.rm = TRUE)) 
+
+rmse_rainday_0_block <- rmse_rainday_0_block %>%
+  mutate(statistic = "RMSE_0")
+
+# First order
+
+mc_models_1_block <- zimbabwe_bc_stack_occ %>%
+  group_by(source, station, block) %>%
+  group_modify(~ tibble(m = list(fit_first_order_markov(.x)))) %>%
+  ungroup()
+
+doy_df <- expand.grid(lag_rainday = c(TRUE, FALSE), s_doy = 1:366)
+doy_df$s_doy_date <- as.Date(doy_df$s_doy, origin = as.Date("1999/07/31"))
+fitted_list <- list()
+for (i in seq_len(nrow(mc_models_1_block))) {
+  fitted_data <- doy_df
+  preds <- predict(mc_models_1_block$m[[i]], newdata = fitted_data, type = "response")
+  fitted_data$fitted <- preds
+  fitted_data$source <- mc_models_1_block$source[i]
+  fitted_data$station <- mc_models_1_block$station[i]
+  fitted_data$block <- mc_models_1_block$block[i]
+  
+  fitted_list[[i]] <- fitted_data
+}
+
+fitted_doy_df_1_block <- bind_rows(fitted_list)
+fitted_doy_df_1_block$lag_rainday_fct <- 
+  factor(ifelse(fitted_doy_df_1_block$lag_rainday, "Rain", "No Rain"),
+         levels = c("Rain", "No Rain"))
+
+rain_ref_block <- fitted_doy_df_1_block %>%
+  filter(source == "Gauge") %>%
+  dplyr::select(station, block, s_doy, lag_rainday_fct, fitted_rain = fitted)
+
+rmse_rainday_1_block <- fitted_doy_df_1_block %>%
+  filter(source != "Gauge") %>%
+  left_join(rain_ref_block, by = c("station", "block", "s_doy", "lag_rainday_fct")) %>%
+  group_by(station, block, source, lag_rainday_fct) %>%
+  summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE))) %>%
+  group_by(source, lag_rainday_fct) %>%
+  summarise(mean = mean(RMSE, na.rm = TRUE),
+            sd = sd(RMSE, na.rm = TRUE))
+
+rmse_rainday_1_block <- rmse_rainday_1_block %>%
+  mutate(statistic = ifelse(lag_rainday_fct == "Rain", "RMSE_1(W)", "RMSE_1(D)")) %>%
+  dplyr::select(-lag_rainday_fct) %>%
+  arrange(statistic, source)
+
 # Rainfall occurrence detection -------------------------------------------
 
 zimbabwe_bc_stack_station_occ <- zimbabwe_bc_stack_occ %>%
@@ -511,6 +701,25 @@ zimbabwe_pod_hss_occ_wide <- zimbabwe_pod_hss_occ %>%
 zimbabwe_pod_hss_occ_wide %>%
   mutate(across(where(is.numeric), ~ sprintf("%.3f", .x))) %>%
   write.csv(here("results", "TableS3.csv"), row.names = FALSE)
+
+
+# Station-block summaries -------------------------------------------------
+
+station_block_summaries <- bind_rows(ks_summary_wet_block,
+                                     ks_summary_dry_block,
+                                     rmse_rainday_0_block,
+                                     rmse_rainday_1_block)
+
+station_block_summaries <- station_block_summaries %>%
+  relocate(statistic)
+
+station_block_summaries <- station_block_summaries %>% 
+  mutate(value = sprintf("%.3f (%.3f)", mean, sd)) %>%
+  dplyr::select(statistic, source, value) %>%
+  pivot_wider(names_from = source, values_from = value)
+
+station_block_summaries %>%
+  write.csv(here("results", "TableX.csv"), row.names = FALSE)
 
 # RAINFALL AMOUNTS --------------------------------------------------------
 
@@ -759,6 +968,66 @@ rmse_rain_amounts_0 %>%
   mutate(across(where(is.numeric), ~ sprintf("%.2f", .x))) %>%
   write.csv(here("results", "Table9.csv"), row.names = FALSE)
 
+# By block
+
+mc_models_0_amounts_block <- zimbabwe_bc_stack_amt %>%
+  group_by(source, station, block) %>%
+  group_modify(~ tibble(m = list(fit_zero_order_markov_amounts(.x)))) %>%
+  ungroup()
+
+doy_df <- tibble(s_doy = 1:366,
+                 s_doy_date = as.Date(1:366, origin = as.Date("1999/07/31")))
+fitted_list <- list()
+for (i in seq_len(nrow(mc_models_0_amounts_block))) {
+  
+  src <- mc_models_0_amounts_block$source[i]
+  stn <- mc_models_0_amounts_block$station[i]
+  blk <- mc_models_0_amounts_block$block[i]
+  mod <- mc_models_0_amounts_block$m[[i]]
+  
+  preds <- predict(mod, newdata = doy_df, type = "response")
+  
+  fitted_list[[i]] <- tibble(
+    source = src,
+    station = stn,
+    block = blk,
+    s_doy = doy_df$s_doy,
+    s_doy_date = doy_df$s_doy_date,
+    fitted = preds
+  )
+}
+fitted_doy_df_0_amounts_block <- bind_rows(fitted_list)
+
+ggplot(fitted_doy_df_0_amounts_block, 
+       aes(x = s_doy_date, y = fitted, color = source)) +
+  geom_line(size = 0.8) +
+  scale_x_date(date_breaks = "2 months", date_labels = "%b") +
+  facet_grid(vars(station), vars(block), axes = "all_x") +
+  labs(
+    x = "Date",
+    y = "Mean rainfall per rain day (mm/rain day)",
+    color = "Source",
+    linetype = "Source"
+  ) +
+  col_scale_amt + 
+  base_theme()
+
+rain_ref <- fitted_doy_df_0_amounts_block %>%
+  filter(source == "Gauge") %>%
+  dplyr::select(station, block, s_doy, fitted_rain = fitted)
+
+rmse_rain_amounts_0_block <- fitted_doy_df_0_amounts_block %>%
+  filter(source != "Gauge") %>%
+  left_join(rain_ref, by = c("station", "block", "s_doy")) %>%
+  group_by(station, block, source) %>%
+  summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE)))
+
+rmse_rain_amounts_0_block_summary <- rmse_rain_amounts_0_block %>%
+  group_by(source) %>%
+  summarise(mean = mean(RMSE, na.rm = TRUE),
+            sd = sd(RMSE, na.rm = TRUE)) %>%
+  mutate(statistic = "RMSE_0")
+
 # Markov Chain First Order Rainfall Models
 
 fit_first_order_markov_amounts <- function(data) {
@@ -839,6 +1108,80 @@ ggplot(rmse_rain_amounts_1,
 
 ggsave(here("results", "Fig18.jpeg"),
        width = 12, height = 6)
+
+# By block
+
+mc_models_1_amounts_block <- zimbabwe_bc_stack_amt %>%
+  group_by(source, station, block) %>%
+  group_modify(~ tibble(m = list(fit_first_order_markov_amounts(.x)))) %>%
+  ungroup()
+
+doy_df <- expand.grid(lag_rainday = c(TRUE, FALSE), s_doy = 1:366)
+doy_df$s_doy_date <- as.Date(doy_df$s_doy, origin = as.Date("1999/07/31"))
+fitted_list <- list()
+for (i in seq_len(nrow(mc_models_1_amounts_block))) {
+  fitted_data <- doy_df
+  preds <- predict(mc_models_1_amounts_block$m[[i]], newdata = fitted_data, type = "response")
+  fitted_data$fitted <- preds
+  fitted_data$source <- mc_models_1_amounts_block$source[i]
+  fitted_data$station <- mc_models_1_amounts_block$station[i]
+  fitted_data$block <- mc_models_1_amounts_block$block[i]
+  
+  fitted_list[[i]] <- fitted_data
+}
+fitted_doy_df_1_amounts_block <- bind_rows(fitted_list)
+fitted_doy_df_1_amounts_block$lag_rainday_fct <- 
+  factor(ifelse(fitted_doy_df_1_amounts_block$lag_rainday, "Rain", "No Rain"),
+         levels = c("Rain", "No Rain"))
+
+ggplot(fitted_doy_df_1_amounts_block, 
+       aes(x = s_doy_date, y = fitted, color = source)) +
+  geom_line(size = 0.8) +
+  scale_x_date(date_breaks = "2 months", date_labels = "%b") +
+  facet_grid(vars(lag_rainday_fct), vars(station, block), axes = "all_x") +
+  labs(
+    x = "Date",
+    y = "Mean rainfall per rain day (mm/rain day)",
+    color = "Source"
+  ) +
+  base_theme() +
+  col_scale_amt
+
+rain_ref <- fitted_doy_df_1_amounts_block %>%
+  filter(source == "Gauge") %>%
+  dplyr::select(station, block, s_doy, lag_rainday_fct, fitted_rain = fitted)
+
+rmse_rain_amounts_1_block <- fitted_doy_df_1_amounts_block %>%
+  filter(source != "Gauge") %>%
+  left_join(rain_ref, by = c("station", "block", "s_doy", "lag_rainday_fct")) %>%
+  group_by(station, block, source, lag_rainday_fct) %>%
+  summarise(RMSE = sqrt(mean((fitted - fitted_rain)^2, na.rm = TRUE)))
+
+rmse_rain_amounts_1_block_summary <- rmse_rain_amounts_1_block %>%
+  group_by(source, lag_rainday_fct) %>%
+  summarise(mean = mean(RMSE, na.rm = TRUE),
+            sd = sd(RMSE, na.rm = TRUE))
+
+rmse_rain_amounts_1_block_summary <- rmse_rain_amounts_1_block_summary %>%
+  mutate(statistic = ifelse(lag_rainday_fct == "Rain", "RMSE_1(W)", "RMSE_1(D)")) %>%
+  dplyr::select(-lag_rainday_fct) %>%
+  arrange(statistic, source)
+
+# Station-block summaries -------------------------------------------------
+
+station_block_summaries_amounts <- bind_rows(rmse_rain_amounts_0_block_summary,
+                                             rmse_rain_amounts_1_block_summary)
+
+station_block_summaries_amounts <- station_block_summaries_amounts %>%
+  relocate(statistic)
+
+station_block_summaries_amounts <- station_block_summaries_amounts %>% 
+  mutate(value = sprintf("%.3f (%.3f)", mean, sd)) %>%
+  dplyr::select(statistic, source, value) %>%
+  pivot_wider(names_from = source, values_from = value)
+
+station_block_summaries_amounts %>%
+  write.csv(here("results", "TableW.csv"), row.names = FALSE)
 
 # POD and HSS for rainfall categories -------------------------------------
 
