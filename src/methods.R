@@ -1,11 +1,3 @@
-# Direct replacement
-
-direct_replace <- function(obs, est) {
-  ix <- is.na(obs)
-  obs[ix] <- est[ix]
-  obs
-}
-
 # Threshold adjustment
 thresh <- function(obs, est, obs_thresh = 0.85) {
   id <- !is.na(obs) & !is.na(est)
@@ -211,7 +203,7 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
           group_modify(~{
             y0 <- .x$obs_wd_prev[1]
             if (is.na(y0)) y0 <- FALSE
-            y  <- conditional_wd(.x[[est_col]], t_w, t_d, t0, y0)
+            y  <- conditional_wd(.x[[est_col]], t_w, t_d, t0)
             # dplyr::lag() fails if y is all NAs so do it manually
             if(all(is.na(y))) lag_y <- c(y0, rep(NA, length(y) - 1))
             else lag_y <- dplyr::lag(y, default = y0)
@@ -235,7 +227,6 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
         p_w_est <- p_w_est_new
         p_d_est <- p_d_est_new
         # Compare with target probabilities and stop if sufficiently converged
-        # Use a tolerance based on number of observations
         tol_w <- 1 / max(sum(res$est_wd_prev, na.rm = TRUE), 1)
         tol_d <- 1 / max(sum(!res$est_wd_prev, na.rm = TRUE), 1)
         # Tolerance to check if probabilities have changed from previous iteration
@@ -285,9 +276,6 @@ markov_thresholds <- function(data, obs_col = "obs", est_col = "est",
                           na.rm = TRUE) - obs_thr
         s_obs_dry <- mean(obs_prev_dry[obs_prev_dry > obs_thr], 
                           na.rm = TRUE) - obs_thr
-        # TODO Is it always correct to subtract t_w/t_d?
-        # Could previous day rain have come from t0 or initial state?
-        # What happens to rainfall days with no previous value - adjust by s_all?
         s_est_wet <- mean(est_prev_wet[est_prev_wet > t_w], 
                           na.rm = TRUE) - t_w
         s_est_dry <- mean(est_prev_dry[est_prev_dry > t_d], 
@@ -377,7 +365,6 @@ markov_loci <- function(data, obs_col = "obs", est_col = "est",
                                     tol = tol, max_it = max_it, n_conv = n_conv, 
                                     damping = damping)
       data_apply <- data_apply %>%
-        # Filter not needed?
         dplyr::left_join(m_thresh %>% filter(station == st), 
                          by = c("station", "season"))
       # Extract Empirical parameters for QM - Empirical
@@ -433,15 +420,12 @@ markov_loci <- function(data, obs_col = "obs", est_col = "est",
       est_qm_gamma_mk[1] <- qm_gamma(est[1], t0[1], shape_est_all[1], rate_est_all[1], 
                                   shape_obs_all[1], rate_obs_all[1], obs_thr)
       
-      # TODO Should this be modified for s = 0 case?
-      # TODO Calculate w/d variable first and use for ifs to be consistent
       for (i in 2:n) {
         est_loci[i] <- obs_thr + s[i] * (est[i] - t0[i])
         est_qm_empirical[i] <- qm_empirical(est[i], t0[i], obs_all[[i]], ecdf_est_all[[i]])
         est_qm_gamma[i] <- qm_gamma(est[i], t0[i], shape_est_all[i], rate_est_all[i],
                                     shape_obs_all[i], rate_obs_all[i], obs_thr)
         if (is.na(est_loci_mk[i - 1])) {
-          # TODO Move this to function with if for less than threshold
           est_loci_mk[i] <- obs_thr + s[i] * (est[i] - t0[i])
           est_qm_empirical_mk[i] <- qm_empirical(est[i], t0[i], obs_all[[i]], ecdf_est_all[[i]])
           est_qm_gamma_mk[i] <- qm_gamma(est[i], t0[i], shape_est_all[i], rate_est_all[i], 
@@ -471,11 +455,11 @@ markov_loci <- function(data, obs_col = "obs", est_col = "est",
     }
   }
   bind_rows(result_list)
-  # result_list <- result_list %>% arrange(station, date)
-  # result_list
 }
 
-# Not needed - for other methods
+## ----------------------------------------------------------------------
+
+# Initial work on possible stochastic methods (not used)
 fit_rain_prob <- function(data, obs_col = "obs", est_col = "est", 
                           date_col = "date", season_col, station_col,
                           obs_thr = 0.85) {
